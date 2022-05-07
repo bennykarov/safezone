@@ -1,0 +1,5 @@
+*.obj
+*.exe
+*.user
+.vs/
+x64/

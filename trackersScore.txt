@@ -1,0 +1,4 @@
+trackers:
+0 - do not working
+1 - Bad
+2- 

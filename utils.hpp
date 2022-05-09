@@ -2,11 +2,29 @@
 #include <Windows.h>
 #include <string>
 #include <vector>
+#include <boost/lexical_cast.hpp> 
+
 
 // EXCEPTION HANDLING
 #define CHECK_assertion(COND)   ((COND) ? (static_cast<void>(0)) : assertion_fail(# COND, __FILE__, __LINE__))
 #define CHECK_exception(COND, MSG)   ((COND) ? (static_cast<void>(0)) : assertion_fail(# COND, __FILE__, __LINE__, MSG))
 
+
+template<typename T>
+//std::vector<T> to_array(const std::string& s)
+std::vector<T> to_array(std::string s)
+{
+	std::vector<T> result;
+	std::string item;
+
+	//remove_if(s.begin(), s.end(), isspace);
+	std::string::iterator end_pos = std::remove(s.begin(), s.end(), ' ');
+	s.erase(end_pos, s.end());
+	std::stringstream ss(s);
+	while (std::getline(ss, item, ','))
+		result.push_back(boost::lexical_cast<T>(item));
+	return result;
+}
 
 inline  void assertion_fail(const char* expr, const char* file, int line, const char* msg)
 {

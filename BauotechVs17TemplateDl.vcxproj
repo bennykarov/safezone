@@ -88,7 +88,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetName>BAUOTECHVS17TEMPLATEDL</TargetName>
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Program Files (x86)\Microsoft Visual Studio 14.0\Team Tools\Performance Tools\x64\PerfSDK;F:\libraries\boost_1_64_0;F:\libraries\boost_1_64_0\boost;F:\libraries\opencv-4.5.4\build\install\include;F:\libraries\eigen-3.4.0</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Program Files (x86)\Microsoft Visual Studio 14.0\Team Tools\Performance Tools\x64\PerfSDK;F:\libraries\boost_1_79_0;F:\libraries\boost_1_79_0\boost;F:\libraries\opencv-4.5.4\build\install\include;F:\libraries\eigen-3.4.0</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64;F:\libraries\opencv-4.5.4\build\install\x64\vc15\lib</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -157,6 +157,7 @@
       <PreprocessorDefinitions>NDEBUG;BAUOTECHVS17TEMPLATEDL_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

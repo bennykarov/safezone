@@ -104,8 +104,9 @@ cv::Mat  CBGSubstruct::process(cv::Mat frame)
     if (m_frameNum < 5) // wormup subStruction
         return cv::Mat();
 
+	bool RamiLevi = false;
     //update the background model
-	if (1) 
+	if (RamiLevi)
 	{
 		cv::Mat HSV, channels[3];
 		cv::cvtColor(frame, HSV, cv::COLOR_BGR2HSV);

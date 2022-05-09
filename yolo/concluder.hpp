@@ -20,6 +20,7 @@ class CConcluder {
 public:
 	void init();
 	void add(std::vector <YDetection> output);
+	void addSimple(std::vector <YDetection> output);
 	int  process();
     int size() { return m_objects.size();}
 
@@ -30,7 +31,6 @@ private:
 
 private:
 	std::vector <CObject2> m_objects;
-
 
 private:
 

@@ -37,12 +37,16 @@ enum STAGE {
 class CDetector {
 public:
 	bool init(int w, int h, int imgSize, bool isCuda, float scaleDisplay = 0.5);
-	int process(void *dataTemp);
+	int process(void *dataTemp, ALGO_DETECTION_OBJECT_DATA *pObjects);
 	int processFrame(cv::Mat &frame);
-	void draw(cv::Mat &img, float scale);
+	void draw(cv::Mat &img, std::vector<YDetection> Youtput, float scale);   // for Yolo
+	void draw(cv::Mat &img, std::vector<cv::Rect>  rois, float scale);		 // for BGSeg
+	void drawInfo(cv::Mat &img);		
+
 	//int draw();
 
 private:
+	bool motionDetected(cv::Mat mask);
 	/*
 	std::vector<cv::KeyPoint> detectBySimpleBlob(cv::Mat img);
 	std::vector <cv::Rect> detectByContours(cv::Mat bgMask);
@@ -73,6 +77,7 @@ private:
 
 	int trackByROI(cv::Mat frame);
 	*/
+	std::vector <cv::Rect> detectByContours(cv::Mat bgMask);
 
 
 private:
@@ -82,9 +87,11 @@ private:
 	int m_frameNum = 0;
 	//float m_calcScale = 0.5;
 	float m_scaleDisplay = 1.;// 0.7;
+	bool  m_motionDetectet = false;
 
 
 	cv::Mat m_frameOrg; // Original image
+	cv::Mat m_frameROI;
 	cv::Mat m_frame; // working image
 	cv::Mat m_prevFrame; // Prev
 	cv::Mat m_bgMask; // MOG2
@@ -95,11 +102,13 @@ private:
 
 
 private:
+	int m_doTracking=1;
+	int m_doDetection=1;
 
 	std::vector<YDetection> m_Youtput;
+	std::vector <cv::Rect>  m_BGSEGoutput;
 
 #if 0
-	CBGSubstruct   m_bgSeg;
 	int status=0;
 
 	// Tracker members
@@ -111,9 +120,11 @@ private:
 	// Detection classes:
 	std::vector <CPredict>  m_predictions;
 #endif  
+	CBGSubstruct   m_bgSeg;
 	int m_colorDepth = 4;
 	Config m_params;
 	std::vector <CRoi2frame>  m_roiList;
 	unsigned int m_objectID_counter = 0;
+	cv::Rect m_camROI = cv::Rect(0,0,0,0);
 
 };

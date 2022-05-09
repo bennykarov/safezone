@@ -11,15 +11,9 @@ namespace CONSTANTS {
 	int const maxLenForPrediction = FPS + 1;  // keep odd for acceleration calc 
 	int const StableLenForPrediction = minLenForPrediction+10; // Prediction doesn't usethe first 10 unstable frames
 
-	/*
-	int const KEEP_ALIVE_SEC = 5;
-	int const MAX_OBJECTS = 20;
-	int const NO_MOTION_TOLERANCE = 10; // in pixels
-	int const DETECTION_REFRASH_RATE = 7; //FPS * 3; // 7 seconds
-	int const MAX_AFTER_MOTION_COUNTER = 10*6;
-	float const DAY_CAM_PROCESS_SCALE = 0.25;
-	float const DAY_CAM_DISPLAY_SCALE = 1.;
-	*/
+	// NEWs
+	int const SKIP_YOLO_FRAMES = 3;
+
 };
 
 
@@ -42,9 +36,11 @@ struct Config
 	int showTime = 1;
 	int showBoxesNum = 1;
 	int debugLevel = 0;
+	int beep = 0;
 	float displayScale = 1.;
 	// Algo
 	int trackerType = 0;
+	int MLType = 0;
 	int prediction = 1;
 	int onlineTracker = 0;
 	float scale = 0.5;
@@ -57,4 +53,5 @@ struct Config
 	float MlearningRate = -1.;
 	float shadowclockDirection = 0;
 	int detectionFPS = 2;
+	std::vector <int> camROI = { 0,0,0,0 }; // RECT 
 	};

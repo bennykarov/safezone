@@ -75,8 +75,22 @@ void CConcluder::add(std::vector <YDetection> output)
             m_objects[ind].centers.push_back(center(output[i].box));       
         }
     }
+}
 
 
+/*-----------------------------------------------------------------
+	Add single layer's detector (no matching)
+ *----------------------------------------------------------------*/
+void CConcluder::addSimple(std::vector <YDetection> output)
+{
+	for (auto  obj : output) {
+		CObject2 newObj;
+		newObj.box = obj.box;
+		newObj.class_id = obj.class_id;
+		newObj.confidence = 1;
+		newObj.centers.push_back(center(newObj.box));
+		m_objects.push_back(newObj);
+	}
 }
 
 

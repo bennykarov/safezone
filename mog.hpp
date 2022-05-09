@@ -20,7 +20,7 @@ private:
 	void emphasizeMask(cv::Mat &mask,int enlargeDepth=1);
 private:
     cv::Ptr<cv::BackgroundSubtractor> m_pBackSub;
-    double m_learningRate = -1;// DDEBUG -1;
+    double m_learningRate = 1.;
 	int m_debugLevle = 0;
 	int m_frameNum = 0;
 	int m_emphasize = 1;

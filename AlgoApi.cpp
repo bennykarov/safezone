@@ -6,8 +6,8 @@
 #include "trackerBasic.hpp"
 #include "MotionTrack.hpp"
 
-#include "AlgoDetection.hpp"
 #include "AlgoApi.h"
+#include "AlgoDetection.hpp"
 
 
 CDetector g_tracker;
@@ -41,8 +41,10 @@ API_EXPORT int RunAlgoColors(BAUOTECH_AND_BENNY_KAROV_ALGO algo,
 			}
 
 
-			g_tracker.process((void*)pData);
+			g_tracker.process((void*)pData, pObjects);
+			*objectCount = pObjects->reserved1_personsCount;
 			//g_tracker.draw();
+
 
 			frameNum++;
 

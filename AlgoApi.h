@@ -11,8 +11,8 @@ typedef struct ALGO_DETECTION_OBJECT_DATA
 	int CountUpTime;
 	int ObjectType; // optional
 	int DetectionPercentage;// optional
-	int reserved1;
-	int reserved2;
+	int reserved1_personsCount; // Num of detected persons 
+	int reserved2_motion;	  // Motion detected 
 } ALGO_DETECTION_OBJECT_DATA;
 
 typedef enum BAUOTECH_AND_BENNY_KAROV_ALGO

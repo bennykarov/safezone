@@ -1,3 +1,4 @@
+#include <windows.h>
 #include <thread>
 #include <mutex>
 #include <iostream>
@@ -12,10 +13,12 @@
 #include <boost/property_tree/ini_parser.hpp>
 #include <boost/lexical_cast.hpp> 
 
+
 #include "AlgoApi.h"
+#include "CObject.hpp"
 #include "yolo/yolo5.hpp"
 //#include "trackerBasic.hpp"
-#include "yolo/concluder.hpp"
+#include "concluder.hpp"
 
 
 #include "utils.hpp"
@@ -29,6 +32,8 @@
 */
 
 #include "algoDetection.hpp"
+
+#define MAX_PERSON_DIM	cv::Size(40, 90) // DDEBUG CONST
 
 
 #define EXE_MODE
@@ -99,6 +104,9 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	conf.camROI = to_array<int>(pt.get<std::string>("GENERAL.camROI", "0,0,0,0"));
 	conf.beep = pt.get<int>("GENERAL.beep", conf.beep);
 
+	// [OPTIMIZE]  Optimization
+	conf.skipMotionFrames = pt.get<int>("ALGO.skipMotion", conf.skipMotionFrames);
+	conf.skipdetectionFrames = pt.get<int>("ALGO.skipDetection", conf.skipdetectionFrames);
 	//---------
 	// ALGO:
 	//---------
@@ -107,6 +115,7 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	conf.MHistory = pt.get<int>("ALGO.MHistory", conf.MHistory);
 	conf.MvarThreshold = pt.get<float>("ALGO.MvarThreshold", conf.MvarThreshold);
 	conf.MlearningRate = pt.get<float>("ALGO.MlearningRate", conf.MlearningRate);
+	conf.motionType = pt.get<int>("ALGO.motion", conf.motionType);
 	conf.trackerType = pt.get<int>("ALGO.tracker", conf.trackerType);
 	conf.MLType      = pt.get<int>("ALGO.ML", conf.MLType);
 	conf.prediction = pt.get<int>("ALGO.predict", conf.prediction);
@@ -141,7 +150,7 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	{
 		int counter = 0;
 		for (auto detection : outputs) {
-			if (detection.class_id == Classes::person)
+			if (detection.class_id == Labels::person)
 				counter++;
 		}
 
@@ -168,18 +177,18 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 			}
 
 		// MOG2 
-		if (m_params.trackerType > 0) {
+		if (m_params.motionType > 0) {
 			int emphasize = CONSTANTS::MogEmphasizeFactor;
 			m_bgSeg.init(m_params.MHistory, m_params.MvarThreshold, false, emphasize);
 			m_bgSeg.setLearnRate(m_params.MlearningRate);
 		}
 
-		m_concluder.init();
-
-
-
-
-
+		if (1) {
+			m_concluder.init();
+			m_concluder.setPersonDim(MAX_PERSON_DIM); // DDEBUG CONST
+		}
+		// TESTS:
+		// m_tracker.track_main("G:/data/bauoTech/Alenbi/04-04-2022/B_ch08.mp4", m_params.trackerType, 13000);   exit(0);
 
 #if 0
 		// DDEBUG DDEBUG : Read RIO's from a file 
@@ -202,48 +211,56 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 		m_bgMask.setTo(0);
 		m_BGSEGoutput.clear();
 		m_motionDetectet = 0;
-		m_doDetection = 0;
-		
 
-		if (m_params.trackerType > 0) { 
+		// BG seg detection
+		//--------------------
+		if (timeForMotion()) {
 			m_bgMask = m_bgSeg.process(frame);
-			if (!m_bgMask.empty())
+			if (!m_bgMask.empty()) {
 				m_motionDetectet = cv::countNonZero(m_bgMask) > ALGO_DETECTOPN_CONSTS::MIN_PIXELS_FOR_MOTION;
+				std::vector <cv::Rect>  BGSEGoutput = detectByContours(m_bgMask);
+				for (auto obj : BGSEGoutput) {
+					if (obj.area() <= MAX_PERSON_DIM.width*MAX_PERSON_DIM.height)
+						m_BGSEGoutput.push_back(obj);
+					else 
+						m_BGSEGoutputLarge.push_back(obj);
+				}
 
-			// -3- Find  motion's blobs (objects)
-			if (m_motionDetectet)
-				m_BGSEGoutput = detectByContours(m_bgMask);
+			}
 		}
+		else
+			int debug = 10;
 
-		// run YOLO or not to run YOLO, this is the question:
-		if (m_params.MLType > 0 && m_frameNum % CONSTANTS::SKIP_YOLO_FRAMES == 0) {
-			//if (m_params.MLType > 1)
-			//m_doDetection = m_frameNum % CONSTANTS::SKIP_YOLO_FRAMES == 0 ? 1 : 0; // once awhile 
-			m_doDetection = m_frameNum % m_params.MLType == 0 ? 1 : 0;			
-			m_doDetection += m_BGSEGoutput.size();      // if motion object was deteted
-		}
-
-		if (m_doDetection > 0) {
+		// YOLO detection
+		//--------------------
+		if (timeForDetection()) {
 			//Beep(1000, 20); // DDEBUG 
 			m_Youtput.clear();
+			//int64 timer = getTickCount();
+
+			/*
+			if (1) {// DEBUG
+				cv::Mat testImg = frame(cv::Rect(0, 0, frame.cols / 6, frame.rows / 6));
+				auto tp1 = chrono::system_clock::now();
+				m_yolo.detect(testImg, m_Youtput);
+				auto tp2 = chrono::system_clock::now();
+				chrono::duration<long double> delta__time = tp2 - tp1;
+				std::cout << "Partial \ Full Yolo duration = (" << delta__time.count() << " : ";
+			}
+			*/
+
 			m_yolo.detect(frame, m_Youtput);
-			if (personsDetected(m_Youtput))  
+			if (personsDetected(m_Youtput))   
 				Beep(900, 10);// DDEBUG 
 		}
 
+		m_concluder.add(m_BGSEGoutput, m_Youtput, m_frameNum); // add & match
+	/*
 		m_concluder.addSimple(m_Youtput);
 		m_concluder.process();
+		*/
 
-		//----------------------------
-		// Descide when to do what :
-		//----------------------------
-		if (m_frameNum % CONSTANTS::SKIP_YOLO_FRAMES)
-			m_doDetection = 1;
-		else
-			m_doDetection = 0;
-
-
-		m_frameNum++;
+		m_concluder.track();
 
 
 #ifdef EXE_MODE
@@ -255,6 +272,8 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 		tracked_count = m_BGSEGoutput.size();
 		return tracked_count;
 	}
+
+
 
 
 	int CDetector::process(void *dataOrg, ALGO_DETECTION_OBJECT_DATA *pObjects)
@@ -273,7 +292,7 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 		}
 
 
-		// set active ROI at first time
+		// Set active ROI at first time
 		if (m_camROI.width == 0) {// ROI not set yet
 			if (m_params.camROI[2] > 0 && m_params.camROI[3] > 0 && m_params.camROI[0] + m_params.camROI[2] < m_frameOrg.cols && m_params.camROI[1] + m_params.camROI[3] < m_frameOrg.rows) {
 				m_camROI = cv::Rect(m_params.camROI[0], m_params.camROI[1], m_params.camROI[2], m_params.camROI[3]);
@@ -281,30 +300,25 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 			else
 				m_camROI = cv::Rect(0, 0, m_frameOrg.cols, m_frameOrg.rows);
 		}
-		
+
 		m_frameROI = m_frameOrg(m_camROI);
 
 		cv::resize(m_frameROI, m_frame, cv::Size(0, 0), m_params.scale, m_params.scale); // performance issues 
 
 		int objects_tracked = 0;
-		if (m_frameNum % m_params.detectionFPS == 0) 
-			objects_tracked = processFrame(m_frame);
+
+		objects_tracked = processFrame(m_frame);
 
 		pObjects->reserved1_personsCount = 0;
 		pObjects->reserved2_motion = objects_tracked; //  m_motionDetectet ? 1 : 0;
 
-		if (objects_tracked > 0)
-			int debug = 10;
-
-
 		// Draw overlays :
-		draw(m_frameOrg, m_Youtput , 1.0 / m_params.scale);
+		//draw(m_frameOrg, m_Youtput , 1.0 / m_params.scale);
 		draw(m_frameOrg, m_BGSEGoutput, 1.0 / m_params.scale);
+		draw(m_frameOrg, 1.0 / m_params.scale);
 
 		drawInfo(m_frameOrg);
 		//cv::putText(m_frameOrg, std::to_string(m_frameNum) , cv::Point(200, m_frameOrg.rows - 200), cv::FONT_HERSHEY_SIMPLEX, 1., cv::Scalar(0, 255, 0));
-
-
 	
 		return m_frameNum++;
 	}
@@ -354,13 +368,50 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 	}
 
 
+	/*---------------------------------------------------------------------------------------------
+	 *			DRAW FUNCTIONS 
+	 ---------------------------------------------------------------------------------------------*/
+
+	void CDetector::draw(cv::Mat &img, float scale)
+	{
+		cv::Scalar  color(0,0,0);
+
+		for (auto obj : m_concluder.getObjects(m_frameNum)) {
+			auto box = scaleBBox(obj.m_bbox, scale);
+			box += cv::Point(m_camROI.x, m_camROI.y);
+			auto classId = obj.m_finalLabel;
+			//--------------------------------------------------------------
+			// Colors: 
+			//        RED for person, 
+			//        BLUE for moving YOLO object (other than Person), 
+			//		  White for motion tracking 
+			//--------------------------------------------------------------
+			if (obj.m_finalLabel == Labels::person)
+				color = cv::Scalar(0, 0, 255); // colors[classId % colors.size()];
+			/*
+			else if (obj.m_finalLabel == Labels::nonLabled) // motion
+				color = cv::Scalar(200, 200, 200);
+			*/
+			//else if (obj.back().m_finalLabel != Labels::nonLabled && m_concluder.isMoving(obj))     color = cv::Scalar(255, 0, 0);
+			else
+				continue;
+
+
+			cv::rectangle(img, box, color, 3);
+			// Add lablel
+			if (obj.m_finalLabel != Labels::nonLabled) {
+				cv::rectangle(img, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color, cv::FILLED);
+				cv::putText(img, m_yolo.getClassStr(classId).c_str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+			}
+		}
+	}
 
 	void CDetector::draw(cv::Mat &img, std::vector<YDetection> Youtput, float scale)
 	{
 		for (int i = 0; i < Youtput.size(); ++i) {
 			auto detection = Youtput[i];
-			if (detection.class_id == Classes::person || detection.class_id == Classes::car || 
-				detection.class_id == Classes::truck || detection.class_id == Classes::bus)
+			if (detection.class_id == Labels::person || detection.class_id == Labels::car || 
+				detection.class_id == Labels::truck || detection.class_id == Labels::bus)
 			{
 				auto box = scaleBBox(detection.box, scale);
 				box += cv::Point(m_camROI.x, m_camROI.y);
@@ -373,6 +424,7 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 			}
 		}
 	}
+
 
 	void CDetector::draw(cv::Mat &img, std::vector<cv::Rect>  rois, float scale)
 	{
@@ -399,4 +451,24 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 	bool CDetector::motionDetected(cv::Mat mask)
 	{ 
 		return cv::countNonZero(mask) > ALGO_DETECTOPN_CONSTS::MIN_PIXELS_FOR_MOTION;
+	}
+
+
+	bool CDetector::timeForMotion() 
+	{ 
+		return (m_params.motionType > 0 && m_frameNum % m_params.skipMotionFrames == 0);
+	}
+	
+	bool CDetector::timeForDetection()
+	{
+		if (m_params.MLType <= 0) 
+			return false;
+		if (m_BGSEGoutput.size() > 0 )
+			if (m_frameNum %  m_params.skipdetectionFrames == 0) 
+				return true;
+		else if (m_BGSEGoutput.empty() && m_frameNum %  m_params.detectionInterval == 0)
+				return true;
+		else return 
+			false;
+
 	}

@@ -101,9 +101,8 @@ cv::Mat  CBGSubstruct::process(cv::Mat frame)
         return cv::Mat();
 
     m_frameNum = (m_frameNum+1) % 99999;
-    if (m_frameNum < 5) // wormup subStruction
-        return cv::Mat();
 
+#if 0
 	bool RamiLevi = false;
     //update the background model
 	if (RamiLevi)
@@ -115,7 +114,12 @@ cv::Mat  CBGSubstruct::process(cv::Mat frame)
 		m_pBackSub->apply(channels[2], fgMask, m_learningRate);
 	}
 	else 
-		m_pBackSub->apply(frame, fgMask, m_learningRate);
+#endif 
+	m_pBackSub->apply(frame, fgMask, m_learningRate);
+
+	if (m_frameNum < 5) // wormup subStruction
+		return cv::Mat();
+
 
 	if (m_emphasize > 0)
 		emphasizeMask(fgMask, m_emphasize);

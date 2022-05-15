@@ -177,6 +177,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="algoDetection.cpp" />
+    <ClCompile Include="concluder.cpp" />
     <ClCompile Include="dllmain.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -187,10 +188,8 @@
     <ClCompile Include="kf_bahnam.cpp" />
     <ClCompile Include="mog.cpp" />
     <ClCompile Include="MoitionTrack.cpp" />
-    <ClCompile Include="prediction.cpp" />
     <ClCompile Include="trackerBasic.cpp" />
     <ClCompile Include="utils.cpp" />
-    <ClCompile Include="yolo\concluder.cpp" />
     <ClCompile Include="yolo\yolo5.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

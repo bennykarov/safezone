@@ -743,10 +743,19 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 	  return (float)area1 / (float)area2;
   }
 
-  // Ratio of overlapping in r1 
+  // Ratio of overlapping in r1 (order sensative) 
   float bboxesBounding(cv::Rect2f r1, cv::Rect2f r2)
   {
 	  cv::Rect2f overlappedBox = r1 & r2;
+	  if (overlappedBox.area() == 0)
+		  return 0;
+
+	  return (float)overlappedBox.area() / (float)r1.area();
+  }
+
+  float bboxesBounding(cv::Rect r1, cv::Rect r2)
+  {
+	  cv::Rect overlappedBox = r1 & r2;
 	  if (overlappedBox.area() == 0)
 		  return 0;
 
@@ -767,7 +776,7 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
   /*-------------------------------------------
    * Alpha blanding for RECT
    -------------------------------------------*/
-  void blenBbox(cv::Rect2f &r1, cv::Rect2f r2, float alpha)
+  void blendBbox(cv::Rect2f &r1, cv::Rect2f r2, float alpha)
   {
 	  cv::Point2f blendedCenter = (centerOf(r1) * alpha + centerOf(r2) * (1. - alpha)) / 2.;
 	  r1.width =  r1.width * alpha + r2.width *  (1. - alpha);
@@ -779,6 +788,17 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 		   Beep(1200, 20);
 	*/
 
+  }
+
+  cv::Rect centerBox(cv::Point center, cv::Size size)
+  {
+	  cv::Rect box;
+	  box.x = center.x - int((float)size.width / 2.);
+	  box.y = center.y - int((float)size.height / 2.);
+	  box.width = size.width;
+	  box.height = size.height;
+
+	  return box;
   }
 
   double interpolate(vector<double> &xData, vector<double> &yData, double x, bool extrapolate)
@@ -862,6 +882,26 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
   }
 
 
+
+  cv::Rect resize(cv::Rect r, cv::Size newDim)
+  { 
+	  cv::Rect newR;
+	  newR.x = r.x - int(float(newDim.width - r.width) / 2.);
+	  newR.y = r.y - int(float(newDim.height - r.height) / 2.);
+	  newR.width = newDim.width;
+	  newR.height = newDim.height;
+
+	  return newR;
+  }
+
+
+  bool similarAreas(cv::Rect r1, cv::Rect r2, float absRatio)
+  {
+	  float ratio = (float)r1.area() / (float)r2.area();
+	  if (ratio > 1.)
+		  ratio = 1. / ratio;
+	  return (ratio >= absRatio );
+  }
 #if 0
   // cv::Rect (12f) utils :
   cv::Rect extendBBox(cv::Rect rect_, cv::Point p)

@@ -2,18 +2,6 @@
 
 
 
-enum Classes
-{
-	person = 0,
-	bicycle,    //   1
-	car,        //   2
-	motorbike,  //   3
-	aeroplane,  //   4
-	bus,        //   5
-	train,      //   6  
-	truck       //   7
-};
-
 struct YDetection
 {
     int class_id;

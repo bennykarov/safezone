@@ -3,7 +3,7 @@
 	Predict by prev motions
 	Check that predicted rect overlapped the motion rect
  -----------------------------------------------------------------------*/
-#include "CObject.hpp"
+#include "CObject2.hpp"
 #include "Kalman.h"
 #include "Kalman2.hpp"
 

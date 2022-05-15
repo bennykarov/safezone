@@ -9,12 +9,13 @@
 #include "opencv2/highgui.hpp"
 
 #include "mog.hpp"
-#include "prediction.hpp"
-#include "CObject.hpp"
+//#include "prediction.hpp"
+//#include "CObject.hpp"
 
 #include "yolo/types.hpp"
+#include "CObject.hpp"
 #include "yolo/yolo5.hpp"
-#include "yolo/concluder.hpp"
+#include "concluder.hpp"
 
 
 class CRoi2frame {
@@ -39,6 +40,7 @@ public:
 	bool init(int w, int h, int imgSize, bool isCuda, float scaleDisplay = 0.5);
 	int process(void *dataTemp, ALGO_DETECTION_OBJECT_DATA *pObjects);
 	int processFrame(cv::Mat &frame);
+	void draw(cv::Mat &img, float scale);   // by Concluder (good objects)
 	void draw(cv::Mat &img, std::vector<YDetection> Youtput, float scale);   // for Yolo
 	void draw(cv::Mat &img, std::vector<cv::Rect>  rois, float scale);		 // for BGSeg
 	void drawInfo(cv::Mat &img);		
@@ -79,6 +81,8 @@ private:
 	*/
 	std::vector <cv::Rect> detectByContours(cv::Mat bgMask);
 
+	bool timeForMotion();
+	bool timeForDetection();
 
 private:
 	int m_width = 0;
@@ -98,15 +102,14 @@ private:
 	cv::Mat m_display;
 
 	CYolo5 m_yolo;
+	//CTracker       m_tracker;
 	CConcluder m_concluder;
 
 
 private:
-	int m_doTracking=1;
-	int m_doDetection=1;
-
 	std::vector<YDetection> m_Youtput;
-	std::vector <cv::Rect>  m_BGSEGoutput;
+	std::vector <cv::Rect>  m_BGSEGoutput; // humna candidates
+	std::vector <cv::Rect>  m_BGSEGoutputLarge; // Larger objects (not a human)
 
 #if 0
 	int status=0;

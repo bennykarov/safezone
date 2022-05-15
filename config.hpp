@@ -5,14 +5,16 @@ namespace CONSTANTS {
 	int const FPS = 30;
 	int const DetectionFPS = 3;
 	int const motionDetectionFPS = DetectionFPS;
-	int const MogEmphasizeFactor = 1;
+	int const MogEmphasizeFactor = 3;
 	int const StableLen = 4;
 	int const minLenForPrediction = 10 + 1; // keep odd for acceleration calc
 	int const maxLenForPrediction = FPS + 1;  // keep odd for acceleration calc 
 	int const StableLenForPrediction = minLenForPrediction+10; // Prediction doesn't usethe first 10 unstable frames
 
 	// NEWs
-	int const SKIP_YOLO_FRAMES = 3;
+	int const DEFAULT_SKIP_FRAMES_BGSEG = 1;
+	int const DEFAULT_SKIP_FRAMES_YOLO = 2; // 
+	int const DEFAULT_INTERVAL_FRAMES_YOLO = 10;
 
 };
 
@@ -38,7 +40,12 @@ struct Config
 	int debugLevel = 0;
 	int beep = 0;
 	float displayScale = 1.;
+	// OPtimization
+	int skipMotionFrames = CONSTANTS::DEFAULT_SKIP_FRAMES_BGSEG;
+	int skipdetectionFrames = CONSTANTS::DEFAULT_SKIP_FRAMES_YOLO; // in case  motion was detected 
+	int detectionInterval = CONSTANTS::DEFAULT_INTERVAL_FRAMES_YOLO; // in case NO motion was detected 
 	// Algo
+	int motionType = 0;
 	int trackerType = 0;
 	int MLType = 0;
 	int prediction = 1;

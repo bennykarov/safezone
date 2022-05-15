@@ -78,7 +78,8 @@ inline int areaOf(cv::Rect2f r) { return int(r.width + r.height); }
 
 inline bool isEmpty(cv::RotatedRect rr) { return (rr.size.width == 0 || rr.size.height == 0); }
 inline bool isEmpty(cv::Rect2f r) { return (r.width == 0 || r.height == 0); }
-
+cv::Rect resize(cv::Rect r, cv::Size newDim); 
+bool similarAreas(cv::Rect r1, cv::Rect r2, float absRatio);
 
 #define TICKFREQUENCY 1000.
 
@@ -221,11 +222,12 @@ private:
  cv::Rect2f extendBBox(cv::Rect2f rect_, cv::Point2f p);
  cv::Rect2f scaleBBox(cv::Rect2f rect, float scale);
  cv::Rect   scaleBBox(cv::Rect rect, float scale);
+ cv::Rect centerBox(cv::Point center, cv::Size size);
  float    bboxRatio(cv::Rect2f r1, cv::Rect2f r2);
  float    bboxOrderRatio(cv::Rect2f r1, cv::Rect2f r2); // order is matter
  cv::Rect2f resizeBBox(cv::Rect2f rect, float scale);
  cv::Rect2f resizeBBox(cv::Rect2f rect, cv::Size size, float scale);
- void blenBbox(cv::Rect2f &r1, cv::Rect2f r2, float alpha = 0.3);
+ void blendBbox(cv::Rect2f &r1, cv::Rect2f r2, float alpha = 0.3);
 
  
  float bboxesBounding(cv::Rect2f r1, cv::Rect2f r2); // Ratio of r1 overlapping r2

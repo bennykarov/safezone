@@ -93,17 +93,11 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	conf.videoName = pt.get<std::string>("GENERAL.video", conf.videoName);
 	conf.roisName = pt.get<std::string>("GENERAL.rois", conf.roisName);
 	conf.waitKeyTime = pt.get<int>("GENERAL.delay-ms", conf.waitKeyTime);
-	//conf.displayScale = pt.get<float>("GENERAL.scaleDisplay", conf.displayScale);
 	conf.record = pt.get<int>("GENERAL.record", conf.record);
 	conf.demoMode = pt.get<int>("GENERAL.demo", conf.demoMode);
 	conf.debugLevel = pt.get<int>("GENERAL.debug", conf.debugLevel);
-	conf.shadowclockDirection = pt.get<float>("GENERAL.shadow-hand", conf.shadowclockDirection);
-	conf.showTime = pt.get<int>("GENERAL.show-time", conf.showTime);
-	conf.showBoxesNum = pt.get<int>("GENERAL.show-boxes-num", conf.showBoxesNum);
-	//std::vector <int> v = pt.get<std::vector <int>>("GENERAL.show-boxes-num");
+	conf.showTruck = pt.get<int>("GENERAL.showTruck", conf.showTruck);
 	conf.camROI = to_array<int>(pt.get<std::string>("GENERAL.camROI", "0,0,0,0"));
-	conf.beep = pt.get<int>("GENERAL.beep", conf.beep);
-
 	// [OPTIMIZE]  Optimization
 	conf.skipMotionFrames = pt.get<int>("ALGO.skipMotion", conf.skipMotionFrames);
 	conf.skipdetectionFrames = pt.get<int>("ALGO.skipDetection", conf.skipdetectionFrames);
@@ -118,9 +112,16 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	conf.motionType = pt.get<int>("ALGO.motion", conf.motionType);
 	conf.trackerType = pt.get<int>("ALGO.tracker", conf.trackerType);
 	conf.MLType      = pt.get<int>("ALGO.ML", conf.MLType);
+	/*
 	conf.prediction = pt.get<int>("ALGO.predict", conf.prediction);
 	conf.onlineTracker = pt.get<int>("ALGO.onlineTracker", conf.onlineTracker);
-
+	//conf.displayScale = pt.get<float>("GENERAL.scaleDisplay", conf.displayScale);
+	//conf.beep = pt.get<int>("GENERAL.beep", conf.beep);
+	//conf.shadowclockDirection = pt.get<float>("GENERAL.shadow-hand", conf.shadowclockDirection);
+	//conf.showTime = pt.get<int>("GENERAL.show-time", conf.showTime);
+	//conf.showBoxesNum = pt.get<int>("GENERAL.show-boxes-num", conf.showBoxesNum);
+	//std::vector <int> v = pt.get<std::vector <int>>("GENERAL.show-boxes-num");
+	*/
 	return true;
 }
 
@@ -374,7 +375,7 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 
 	void CDetector::draw(cv::Mat &img, float scale)
 	{
-		cv::Scalar  color(0,0,0);
+		cv::Scalar  color(0, 0, 0);
 
 		for (auto obj : m_concluder.getObjects(m_frameNum)) {
 			auto box = scaleBBox(obj.m_bbox, scale);
@@ -386,20 +387,38 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 			//        BLUE for moving YOLO object (other than Person), 
 			//		  White for motion tracking 
 			//--------------------------------------------------------------
+			// Person objects
 			if (obj.m_finalLabel == Labels::person)
 				color = cv::Scalar(0, 0, 255); // colors[classId % colors.size()];
-			/*
+			// BGSeg stable objects
 			else if (obj.m_finalLabel == Labels::nonLabled) // motion
 				color = cv::Scalar(200, 200, 200);
-			*/
-			//else if (obj.back().m_finalLabel != Labels::nonLabled && m_concluder.isMoving(obj))     color = cv::Scalar(255, 0, 0);
 			else
 				continue;
-
 
 			cv::rectangle(img, box, color, 3);
 			// Add lablel
 			if (obj.m_finalLabel != Labels::nonLabled) {
+				cv::rectangle(img, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color, cv::FILLED);
+				cv::putText(img, m_yolo.getClassStr(classId).c_str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+			}
+		}
+
+
+		// Draw other Labeled objects (only moving objects)
+		if (m_params.showTruck > 0) {
+			bool showOnlyWhileMoving = m_params.showTruck == 1;
+			for (auto obj : m_concluder.getObjectsOthers(m_frameNum, showOnlyWhileMoving)) {
+				auto box = scaleBBox(obj.m_bbox, scale);
+				box += cv::Point(m_camROI.x, m_camROI.y);
+				auto classId = obj.m_finalLabel;
+
+				if (classId == Labels::train || classId == Labels::bus) // DDEBUg
+					classId = Labels::truck;
+
+				color = cv::Scalar(255, 0, 0);
+				cv::rectangle(img, box, color, 3);
+				// Add lablel
 				cv::rectangle(img, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color, cv::FILLED);
 				cv::putText(img, m_yolo.getClassStr(classId).c_str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
 			}
@@ -463,10 +482,11 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 	{
 		if (m_params.MLType <= 0) 
 			return false;
-		if (m_BGSEGoutput.size() > 0 )
-			if (m_frameNum %  m_params.skipdetectionFrames == 0) 
+		if (m_BGSEGoutput.size() > 0) {
+			if (m_frameNum %  m_params.skipdetectionFrames == 0)
 				return true;
-		else if (m_BGSEGoutput.empty() && m_frameNum %  m_params.detectionInterval == 0)
+		}
+		else if (m_frameNum %  m_params.detectionInterval == 0)
 				return true;
 		else return 
 			false;

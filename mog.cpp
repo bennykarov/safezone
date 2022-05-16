@@ -136,13 +136,13 @@ void CBGSubstruct::emphasizeMask(cv::Mat &mask, int enlargeDepth)
 	cv::Mat element1 = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * kernel_size + 1, 2 * kernel_size + 1), cv::Point(kernel_size, kernel_size));
 	kernel_size = 3; // DDEBUG CONST 
 	cv::Mat element3 = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * kernel_size + 1, 2 * kernel_size + 1), cv::Point(kernel_size, kernel_size));
-	if (0)
-	{
-		cv::erode(mask, mask, element1);
-		cv::dilate(mask, mask, element1);
-	}
-	for (int i=0; i< enlargeDepth;i++)
+
+	// Enlarge (and stitch together)
+	for (int i = 0; i < enlargeDepth; i++)
 		cv::dilate(mask, mask, element3);
+	// Reduce half way 
+	for (int i = 0; i < enlargeDepth/2; i++)
+		cv::erode(mask, mask, element3);
 
 
 

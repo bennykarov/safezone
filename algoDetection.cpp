@@ -8,6 +8,7 @@
 #include "opencv2/opencv.hpp"
 #include "opencv2/core/core.hpp"
 #include "opencv2/videoio.hpp"
+#include <opencv2/cudaarithm.hpp>
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
@@ -39,9 +40,26 @@
 #define EXE_MODE
 
 #ifdef _DEBUG
-#pragma comment(lib, "opencv_world454d.lib")
+#pragma comment(lib, "opencv_core454d.lib")
+#pragma comment(lib, "opencv_highgui454d.lib")
+#pragma comment(lib, "opencv_video454d.lib")
+#pragma comment(lib, "opencv_videoio454d.lib")
+#pragma comment(lib, "opencv_imgcodecs454d.lib")
+#pragma comment(lib, "opencv_imgproc454d.lib")
+#pragma comment(lib, "opencv_tracking454d.lib")
+#pragma comment(lib, "opencv_dnn454d.lib")
+//#pragma comment(lib, "opencv_calib3d454d.lib")
+//#pragma comment(lib, "opencv_bgsegm454d.lib")
 #else
-#pragma comment(lib, "opencv_world454.lib")
+#pragma comment(lib, "opencv_core454.lib")
+#pragma comment(lib, "opencv_highgui454.lib")
+#pragma comment(lib, "opencv_video454.lib")
+#pragma comment(lib, "opencv_videoio454.lib")
+#pragma comment(lib, "opencv_imgcodecs454.lib")
+#pragma comment(lib, "opencv_imgproc454.lib")
+#pragma comment(lib, "opencv_tracking454.lib")
+#pragma comment(lib, "opencv_dnn454.lib")
+//#pragma comment(lib, "opencv_world454.lib")
 #endif
 
 namespace  ALGO_DETECTOPN_CONSTS {
@@ -97,10 +115,11 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	conf.demoMode = pt.get<int>("GENERAL.demo", conf.demoMode);
 	conf.debugLevel = pt.get<int>("GENERAL.debug", conf.debugLevel);
 	conf.showTruck = pt.get<int>("GENERAL.showTruck", conf.showTruck);
+	conf.showMotion = pt.get<int>("GENERAL.showMotion", conf.showMotion);
 	conf.camROI = to_array<int>(pt.get<std::string>("GENERAL.camROI", "0,0,0,0"));
 	// [OPTIMIZE]  Optimization
-	conf.skipMotionFrames = pt.get<int>("ALGO.skipMotion", conf.skipMotionFrames);
-	conf.skipdetectionFrames = pt.get<int>("ALGO.skipDetection", conf.skipdetectionFrames);
+	conf.skipMotionFrames = pt.get<int>("ALGO.stepMotion", conf.skipMotionFrames);
+	conf.skipDetectionFrames = pt.get<int>("ALGO.stepDetection", conf.skipDetectionFrames);
 	//---------
 	// ALGO:
 	//---------
@@ -111,7 +130,10 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	conf.MlearningRate = pt.get<float>("ALGO.MlearningRate", conf.MlearningRate);
 	conf.motionType = pt.get<int>("ALGO.motion", conf.motionType);
 	conf.trackerType = pt.get<int>("ALGO.tracker", conf.trackerType);
-	conf.MLType      = pt.get<int>("ALGO.ML", conf.MLType);
+	conf.MLType = pt.get<int>("ALGO.ML", conf.MLType);
+	conf.useGPU = pt.get<int>("ALGO.useGPU", conf.useGPU > 0 ? 1:0) > 1;
+
+	
 	/*
 	conf.prediction = pt.get<int>("ALGO.predict", conf.prediction);
 	conf.onlineTracker = pt.get<int>("ALGO.onlineTracker", conf.onlineTracker);
@@ -159,20 +181,44 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 		return counter;
 	}
 
+	int checkForGPUs()
+	{
+		using namespace cv::cuda;
+
+		std::cout << "--------------------------";
+		std::cout << "GPU INFO : ";
+		printShortCudaDeviceInfo(getDevice());
+		int cuda_devices_number = getCudaEnabledDeviceCount();
+		cout << "CUDA Device(s) Number: " << cuda_devices_number << endl;
+		
+		DeviceInfo _deviceInfo;
+		bool _isd_evice_compatible = _deviceInfo.isCompatible();
+		cout << "CUDA Device(s) Compatible: " << _isd_evice_compatible << endl;
+		std::cout << "--------------------------";
+		return cuda_devices_number;
+	}
+
+
 /*---------------------------------------------------------------------------------------------
  *						D E T E C T O R       C L A S S  
  *--------------------------------------------------------------------------------------------*/
-
-bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay)
+bool CDetector::init(int w, int h, int imgSize , float scaleDisplay)
 	{
 		m_width = w;
 		m_height = h;
 		m_colorDepth = imgSize / (w*h);
 
+
+		if (!m_params.useGPU) 
+			m_isCuda = false;
+		else 
+			m_isCuda = checkForGPUs() > 0;
+
+
 		readConfigFile("config.ini", m_params);
 
 		if (m_params.MLType > 0)
-			if (!m_yolo.init(m_params.modelFolder, isCuda)) {
+			if (!m_yolo.init(m_params.modelFolder, m_isCuda)) {
 				std::cout << "Cant init YOLO5 net , quit \n";
 				return false;
 			}
@@ -185,7 +231,7 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 		}
 
 		if (1) {
-			m_concluder.init();
+			m_concluder.init(m_params.debugLevel);
 			m_concluder.setPersonDim(MAX_PERSON_DIM); // DDEBUG CONST
 		}
 		// TESTS:
@@ -206,8 +252,6 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 
 	int CDetector::processFrame(cv::Mat &frame)
 	{
-		bool is_cuda = false;
-
 		// Reset process flags
 		m_bgMask.setTo(0);
 		m_BGSEGoutput.clear();
@@ -256,12 +300,8 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 		}
 
 		m_concluder.add(m_BGSEGoutput, m_Youtput, m_frameNum); // add & match
-	/*
-		m_concluder.addSimple(m_Youtput);
-		m_concluder.process();
-		*/
 
-		m_concluder.track();
+		m_concluder.track(); // consolidate detected objects 
 
 
 #ifdef EXE_MODE
@@ -310,12 +350,13 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 
 		objects_tracked = processFrame(m_frame);
 
-		pObjects->reserved1_personsCount = 0;
+		//pObjects->reserved1_personsCount = ;
 		pObjects->reserved2_motion = objects_tracked; //  m_motionDetectet ? 1 : 0;
 
 		// Draw overlays :
 		//draw(m_frameOrg, m_Youtput , 1.0 / m_params.scale);
-		draw(m_frameOrg, m_BGSEGoutput, 1.0 / m_params.scale);
+		if (m_params.showMotion)
+			draw(m_frameOrg, m_BGSEGoutput, 1.0 / m_params.scale);
 		draw(m_frameOrg, 1.0 / m_params.scale);
 
 		drawInfo(m_frameOrg);
@@ -377,7 +418,7 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 	{
 		cv::Scalar  color(0, 0, 0);
 
-		for (auto obj : m_concluder.getObjects(m_frameNum)) {
+		for (auto obj : m_concluder.getPersonObjects(m_frameNum)) {
 			auto box = scaleBBox(obj.m_bbox, scale);
 			box += cv::Point(m_camROI.x, m_camROI.y);
 			auto classId = obj.m_finalLabel;
@@ -408,7 +449,7 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 		// Draw other Labeled objects (only moving objects)
 		if (m_params.showTruck > 0) {
 			bool showOnlyWhileMoving = m_params.showTruck == 1;
-			for (auto obj : m_concluder.getObjectsOthers(m_frameNum, showOnlyWhileMoving)) {
+			for (auto obj : m_concluder.getVehicleObjects(m_frameNum, showOnlyWhileMoving)) {
 				auto box = scaleBBox(obj.m_bbox, scale);
 				box += cv::Point(m_camROI.x, m_camROI.y);
 				auto classId = obj.m_finalLabel;
@@ -416,11 +457,20 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 				if (classId == Labels::train || classId == Labels::bus) // DDEBUg
 					classId = Labels::truck;
 
-				color = cv::Scalar(255, 0, 0);
-				cv::rectangle(img, box, color, 3);
-				// Add lablel
-				cv::rectangle(img, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color, cv::FILLED);
-				cv::putText(img, m_yolo.getClassStr(classId).c_str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+				// Draw vehicles and othe 
+				if (classId == Labels::truck) {
+					color = cv::Scalar(155, 155, 0);
+					cv::Point debug = centerOf(box);
+					cv::putText(img, "T", centerOf(box), cv::FONT_HERSHEY_SIMPLEX, 2.5, color, 10);
+
+				}
+				else {
+					color = cv::Scalar(255, 0, 0);
+					cv::rectangle(img, box, color, 3);
+					// Add lablel
+					cv::rectangle(img, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color, cv::FILLED);
+					cv::putText(img, m_yolo.getClassStr(classId).c_str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+				}
 			}
 		}
 	}
@@ -483,12 +533,13 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 		if (m_params.MLType <= 0) 
 			return false;
 		if (m_BGSEGoutput.size() > 0) {
-			if (m_frameNum %  m_params.skipdetectionFrames == 0)
+			if (m_frameNum %  m_params.skipDetectionFrames == 0)
 				return true;
 		}
 		else if (m_frameNum %  m_params.detectionInterval == 0)
 				return true;
-		else return 
-			false;
+
+		// otherwise 
+		return   false;
 
 	}

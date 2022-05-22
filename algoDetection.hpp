@@ -37,7 +37,7 @@ enum STAGE {
 
 class CDetector {
 public:
-	bool init(int w, int h, int imgSize, bool isCuda, float scaleDisplay = 0.5);
+	bool init(int w, int h, int imgSize, float scaleDisplay = 0.5);
 	int process(void *dataTemp, ALGO_DETECTION_OBJECT_DATA *pObjects);
 	int processFrame(cv::Mat &frame);
 	void draw(cv::Mat &img, float scale);   // by Concluder (good objects)
@@ -129,5 +129,6 @@ private:
 	std::vector <CRoi2frame>  m_roiList;
 	unsigned int m_objectID_counter = 0;
 	cv::Rect m_camROI = cv::Rect(0,0,0,0);
+	bool m_isCuda;
 
 };

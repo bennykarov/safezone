@@ -37,11 +37,12 @@ struct Config
 	std::string modelFolder;
 	//int showTime = 1;
 	int showTruck = 0;
+	int showMotion = 0;
 	int debugLevel = 0;
 	float displayScale = 1.;
 	// OPtimization
 	int skipMotionFrames = CONSTANTS::DEFAULT_SKIP_FRAMES_BGSEG;
-	int skipdetectionFrames = CONSTANTS::DEFAULT_SKIP_FRAMES_YOLO; // in case  motion was detected 
+	int skipDetectionFrames = CONSTANTS::DEFAULT_SKIP_FRAMES_YOLO; // in case  motion was detected 
 	int detectionInterval = CONSTANTS::DEFAULT_INTERVAL_FRAMES_YOLO; // in case NO motion was detected 
 	// Algo
 	int motionType = 0;
@@ -55,6 +56,7 @@ struct Config
 	int MHistory = 200;
 	float MvarThreshold = 20.0;
 	float MlearningRate = -1.;
+	bool useGPU = true;
 	/*
 	int beep = 0;
 	int showBoxesNum = 1;

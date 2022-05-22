@@ -7,8 +7,8 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/tracking.hpp>
 //#include <opencv2/tracking/tracker.hpp>
-#include  "F:\libraries\opencv-4.5.4\build\install\include\opencv2\tracking\tracking.hpp"
-#include  "F:\libraries\opencv-4.5.4\build\install\include\opencv2\tracking\tracking_legacy.hpp"
+#include  "opencv2/tracking/tracking.hpp"
+#include  "opencv2/tracking/tracking_legacy.hpp"
 //tracking_legacy.hpp
 #include <opencv2/core/ocl.hpp>
 

@@ -73,7 +73,8 @@ inline std::vector <float> RAD2DEG_vec(std::vector <float>  radVec) { std::vecto
 
 
 cv::Rect2f  moveByCenter(cv::Rect2f r, cv::Point2f center);
-inline cv::Point2f centerOf(cv::Rect2f r) { return (r.br() + r.tl())*0.5; }
+inline cv::Point2f centerOf(cv::Rect2f r) { return (r.br() + r.tl()) * 0.5; }
+inline cv::Point centerOf(cv::Rect r) { return cv::Point((r.br() + r.tl()) * 0.5); }
 inline int areaOf(cv::Rect2f r) { return int(r.width + r.height); }
 
 inline bool isEmpty(cv::RotatedRect rr) { return (rr.size.width == 0 || rr.size.height == 0); }

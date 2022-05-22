@@ -29,7 +29,16 @@ enum Labels
 	aeroplane,  //   4
 	bus,        //   5
 	train,      //   6  
-	truck       //   7
+	truck,       //   7
+	boat,
+	traffic_light,
+	fire_hydrant,
+	stop_sign,
+	parking_meter,
+	bench,
+	bird,
+	cat,
+	dog
 };
 
 
@@ -52,6 +61,7 @@ public:
 		m_detectionType = detectionType;
 		m_frameNum = frameNum;
 		m_bbox = r;
+		m_moving = 0; 
 	}
 
 	bool empty() { return m_bbox.width == 0; }
@@ -63,6 +73,7 @@ public:
 	cv::Rect		m_bbox; // DDEBUG for debug
 	DETECT_TYPE		m_detectionType;
 	int				m_frameNum;
+	int				m_moving; // pixel distance
 
 private:
 };

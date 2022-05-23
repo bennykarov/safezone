@@ -12,7 +12,7 @@ namespace CONCLUDER_CONSTANTS
 	const int GOOD_TRACKING_LEN = 20;
 	const int INHERIT_LABEL_LEN  = 30 * 1; //  1 sec
 	const int MAX_OTHERS_HIDDEN_FRAMES = 4;
-	const int MAX_PERSON_HIDDEN_FRAMES = 10;
+	const int MAX_PERSON_HIDDEN_FRAMES = 25;
 }
 
 cv::Point2f center(cv::Rect r);
@@ -45,7 +45,7 @@ public:
 	bool isMoving(std::vector <CObject> obj);
 	bool isStatic(std::vector <CObject> obj);
 	bool isLarge(std::vector <CObject> obj);
-
+	int  numberOfPersonsObBoard(); // return number of person on board (including hidden objects)
 
 private:
 	int match(std::vector <cv::Rect>);

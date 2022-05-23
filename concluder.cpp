@@ -36,7 +36,6 @@ void CConcluder::add(std::vector <cv::Rect>  BGSEGoutput, std::vector <YDetectio
 			// New object
 			m_objects.push_back(std::vector <CObject>());
 			m_objects.back().push_back(newObj);
-			//m_goodObjects.push_back(newObj);
 		}
 
 		//m_objects.back().back().m_finalLabel = calcFinalLable(m_objects.back());
@@ -46,6 +45,9 @@ void CConcluder::add(std::vector <cv::Rect>  BGSEGoutput, std::vector <YDetectio
 	//----------------------------------------------------
 	for (auto Yobj : YoloOutput) {
 		CObject newObj(Yobj.box, frameNum, 0, DETECT_TYPE::ML, (Labels)Yobj.class_id);  // 	CObject(cv::Rect  r, int frameNum, int id, DETECT_TYPE  detectionType, Labels label)
+
+		if (newObj.m_label == Labels::person)
+			int debug = 10;
 
 		int ind = bestMatch(Yobj.box, 0.5);
 		if (ind >= 0) {
@@ -396,4 +398,11 @@ int CConcluder::pruneObjects()
 	}
 
 	return orgSize - m_objects.size();
+}
+
+
+// return number of person on board (including hidden objects)
+int CConcluder::numberOfPersonsObBoard()
+{
+	return getPersonObjects(m_frameNum).size();
 }

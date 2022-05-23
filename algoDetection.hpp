@@ -111,18 +111,6 @@ private:
 	std::vector <cv::Rect>  m_BGSEGoutput; // humna candidates
 	std::vector <cv::Rect>  m_BGSEGoutputLarge; // Larger objects (not a human)
 
-#if 0
-	int status=0;
-
-	// Tracker members
-	cv::Rect m_trackerROI;
-	// object "class":
-	std::vector<CDetector>  m_trackers;
-	std::vector<CObject>       m_objects;
-
-	// Detection classes:
-	std::vector <CPredict>  m_predictions;
-#endif  
 	CBGSubstruct   m_bgSeg;
 	int m_colorDepth = 4;
 	Config m_params;

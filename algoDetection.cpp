@@ -37,7 +37,6 @@
 #define MAX_PERSON_DIM	cv::Size(40, 90) // DDEBUG CONST
 
 
-#define EXE_MODE
 
 #ifdef _DEBUG
 #pragma comment(lib, "opencv_core454d.lib")
@@ -97,6 +96,20 @@ std::vector <CRoi2frame>  readROISfile(std::string fname)
 }
 
 
+void setConfigDefault(Config &params)
+{
+	params.debugLevel = 0;
+	params.showTruck = 0;
+	params.modelFolder = "C:/SRC/BauoSafeZone/config_files/";
+	params.motionType = 1;
+	params.MLType = 10;
+	params.MHistory = 100;
+	params.MvarThreshold = 580.0;
+	params.MlearningRate = -1;
+	params.skipMotionFrames = 1;
+	params.skipDetectionFrames = 3;
+	params.skipDetectionFrames2 = 3;
+}
 
 bool readConfigFile(std::string ConfigFName, Config &conf)
 {
@@ -120,6 +133,7 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	// [OPTIMIZE]  Optimization
 	conf.skipMotionFrames = pt.get<int>("ALGO.stepMotion", conf.skipMotionFrames);
 	conf.skipDetectionFrames = pt.get<int>("ALGO.stepDetection", conf.skipDetectionFrames);
+	conf.skipDetectionFrames2 = pt.get<int>("ALGO.stepDetection2", conf.skipDetectionFrames2);
 	//---------
 	// ALGO:
 	//---------
@@ -199,6 +213,7 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	}
 
 
+
 /*---------------------------------------------------------------------------------------------
  *						D E T E C T O R       C L A S S  
  *--------------------------------------------------------------------------------------------*/
@@ -208,13 +223,12 @@ bool CDetector::init(int w, int h, int imgSize , float scaleDisplay)
 		m_height = h;
 		m_colorDepth = imgSize / (w*h);
 
-
 		if (!m_params.useGPU) 
 			m_isCuda = false;
 		else 
 			m_isCuda = checkForGPUs() > 0;
 
-
+		setConfigDefault(m_params);
 		readConfigFile("config.ini", m_params);
 
 		if (m_params.MLType > 0)
@@ -234,17 +248,6 @@ bool CDetector::init(int w, int h, int imgSize , float scaleDisplay)
 			m_concluder.init(m_params.debugLevel);
 			m_concluder.setPersonDim(MAX_PERSON_DIM); // DDEBUG CONST
 		}
-		// TESTS:
-		// m_tracker.track_main("G:/data/bauoTech/Alenbi/04-04-2022/B_ch08.mp4", m_params.trackerType, 13000);   exit(0);
-
-#if 0
-		// DDEBUG DDEBUG : Read RIO's from a file 
-		if (!m_params.roisName.empty())
-			m_roiList = readROISfile(m_params.roisName);
-		if (m_params.scale != 1.)
-			for (auto &roi : m_roiList)
-				roi.bbox = scaleBBox(roi.bbox, m_params.scale);
-#endif 
 
 		return true;
 	}
@@ -279,23 +282,10 @@ bool CDetector::init(int w, int h, int imgSize , float scaleDisplay)
 		// YOLO detection
 		//--------------------
 		if (timeForDetection()) {
-			//Beep(1000, 20); // DDEBUG 
 			m_Youtput.clear();
-			//int64 timer = getTickCount();
-
-			/*
-			if (1) {// DEBUG
-				cv::Mat testImg = frame(cv::Rect(0, 0, frame.cols / 6, frame.rows / 6));
-				auto tp1 = chrono::system_clock::now();
-				m_yolo.detect(testImg, m_Youtput);
-				auto tp2 = chrono::system_clock::now();
-				chrono::duration<long double> delta__time = tp2 - tp1;
-				std::cout << "Partial \ Full Yolo duration = (" << delta__time.count() << " : ";
-			}
-			*/
 
 			m_yolo.detect(frame, m_Youtput);
-			if (personsDetected(m_Youtput))   
+			if (m_params.debugLevel > 2 && personsDetected(m_Youtput))
 				Beep(900, 10);// DDEBUG 
 		}
 
@@ -304,10 +294,8 @@ bool CDetector::init(int w, int h, int imgSize , float scaleDisplay)
 		m_concluder.track(); // consolidate detected objects 
 
 
-#ifdef EXE_MODE
-		if (!m_bgMask.empty())
+		if (m_params.debugLevel > 0 &&  !m_bgMask.empty())
 			cv::imshow("m_bgMask", m_bgMask);
-#endif
 
 		int tracked_count;
 		tracked_count = m_BGSEGoutput.size();
@@ -350,7 +338,7 @@ bool CDetector::init(int w, int h, int imgSize , float scaleDisplay)
 
 		objects_tracked = processFrame(m_frame);
 
-		//pObjects->reserved1_personsCount = ;
+		pObjects->reserved1_personsCount = m_concluder.getPersonObjects(m_frameNum).size();
 		pObjects->reserved2_motion = objects_tracked; //  m_motionDetectet ? 1 : 0;
 
 		// Draw overlays :
@@ -523,15 +511,25 @@ bool CDetector::init(int w, int h, int imgSize , float scaleDisplay)
 	}
 
 
+	// Get motion (bgseg) interval 
 	bool CDetector::timeForMotion() 
 	{ 
 		return (m_params.motionType > 0 && m_frameNum % m_params.skipMotionFrames == 0);
 	}
 	
+	// Get detection (YOLO) interval 
 	bool CDetector::timeForDetection()
 	{
 		if (m_params.MLType <= 0) 
 			return false;
+
+		if (m_concluder.numberOfPersonsObBoard() > 0)
+			if (m_frameNum % m_params.skipDetectionFrames == 0)
+				return true;
+		if (m_BGSEGoutput.size() > 0) {
+			if (m_frameNum % m_params.skipDetectionFrames == 0)
+				return true;
+		}
 		if (m_BGSEGoutput.size() > 0) {
 			if (m_frameNum %  m_params.skipDetectionFrames == 0)
 				return true;

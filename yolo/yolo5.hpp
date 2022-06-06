@@ -1,5 +1,5 @@
 #pragma once
-
+#include <atomic>
 
 
 struct YDetection
@@ -10,13 +10,22 @@ struct YDetection
 };
 
 
+enum DETECTION_STATE {
+	Idle = 0,
+	ImageReady, // 1
+	DetectionDone, //  2
+	Terminate = 9
+};
+
 
 class CYolo5 {
 public:
     bool init(std::string modelFolder,   bool is_cuda);
-    void detect(cv::Mat &image, std::vector<YDetection> &output);
-    void detect(cv::Mat &image, std::vector<YDetection> &output, std::vector <cv::Rect>  ROIs);
-    std::string  getClassStr(int i) { return (m_class_list.size() > i ? m_class_list[i] : "None");}
+	void process(cv::Mat &image, std::vector<YDetection> &output, std::atomic<int> &detectionState);
+	void detect(cv::Mat &image, std::vector<YDetection> &output);
+	void detect(cv::Mat &image, std::vector<YDetection> &output, std::vector <cv::Rect>  ROIs);
+	void detect(); // thread detection call
+	std::string  getClassStr(int i) { return (m_class_list.size() > i ? m_class_list[i] : "None");}
 
 private:
     std::vector<std::string> load_class_list();

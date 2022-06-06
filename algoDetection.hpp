@@ -2,7 +2,7 @@
 
 #include <stdio.h>      /* printf, scanf, NULL */
 #include <stdlib.h>     /* malloc, free, rand */
-
+#include <atomic>
 
 #include "opencv2/opencv.hpp"
 #include "opencv2/core/core.hpp"
@@ -38,7 +38,7 @@ enum STAGE {
 class CDetector {
 public:
 	bool init(int w, int h, int imgSize, int pixelWidth, float scaleDisplay = 0.5);
-	bool InitGPU();
+	//bool InitGPU();
 	int process(void *dataTemp, ALGO_DETECTION_OBJECT_DATA *pObjects);
 	int processFrame(cv::Mat &frame);
 	void draw(cv::Mat &img, float scale);   // by Concluder (good objects)
@@ -48,6 +48,7 @@ public:
 
 	int getDetectionCount();
 
+	void terminate(); // terminate process
 
 	//int draw();
 
@@ -101,6 +102,7 @@ private:
 	cv::Mat m_frameOrg; // Original image
 	cv::Mat m_frameROI;
 	cv::Mat m_frame; // working image
+	cv::Mat m_frameYolo; // working image
 	cv::Mat m_prevFrame; // Prev
 	cv::Mat m_bgMask; // MOG2
 	cv::Mat m_display;
@@ -122,5 +124,8 @@ private:
 	unsigned int m_objectID_counter = 0;
 	cv::Rect m_camROI = cv::Rect(0,0,0,0);
 	bool m_isCuda;
+
+	std::thread m_yolo_Th;
+
 
 };

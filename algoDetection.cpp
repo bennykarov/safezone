@@ -1,6 +1,8 @@
 #include <windows.h>
 #include <thread>
 #include <mutex>
+#include <atomic>
+
 #include <iostream>
 #include <chrono>
 #include  <numeric>
@@ -68,6 +70,11 @@
 #pragma comment(lib, "opencv_world454.lib")
 #endif 
 #endif 
+
+// GLOBALS
+std::atomic <int> g_detectionState = 0;
+
+
 namespace  ALGO_DETECTOPN_CONSTS {
 	const int MIN_CONT_AREA = 20 * 10;
 	const int MAX_CONT_AREA = 1000 * 1000;
@@ -245,6 +252,7 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 /*---------------------------------------------------------------------------------------------
  *						D E T E C T O R       C L A S S  
  *--------------------------------------------------------------------------------------------*/
+/*
 bool CDetector::InitGPU()
 {
 
@@ -256,7 +264,7 @@ bool CDetector::InitGPU()
 	return true;
 	
 }
-
+*/
 
 bool CDetector::init(int w, int h, int imgSize , int pixelWidth, float scaleDisplay)
 	{
@@ -290,14 +298,18 @@ bool CDetector::init(int w, int h, int imgSize , int pixelWidth, float scaleDisp
 
 
 
-		if (m_params.MLType > 0)
-		{
-			if (!m_yolo.init(m_params.modelFolder, m_isCuda)) {
+		//if (m_params.MLType > 0)  {
+
+#ifdef OFFLINE
+		if (!m_yolo.init(m_params.modelFolder, m_isCuda)) {
 				std::cout << "Cant init YOLO5 net , quit \n";
 
 				return false;
-			}
 		}
+#endif 
+
+			m_yolo_Th = std::thread(&CYolo5::process, &m_yolo, std::ref(m_frameYolo), std::ref(m_Youtput), std::ref(g_detectionState)); // Including day cam (missing : Pass camera parameters )
+		//}
 
 		// MOG2 
 		if (m_params.motionType > 0)
@@ -321,6 +333,13 @@ bool CDetector::init(int w, int h, int imgSize , int pixelWidth, float scaleDisp
 
 		return true;
 	}
+
+
+void CDetector::terminate()
+{
+	g_detectionState.store(DETECTION_STATE::Terminate);
+	m_yolo_Th.join();
+}
 
 
 	int CDetector::processFrame(cv::Mat &frame_)
@@ -364,17 +383,32 @@ bool CDetector::init(int w, int h, int imgSize , int pixelWidth, float scaleDisp
 		else
 			int debug = 10;
 
-		// YOLO detection
-		//--------------------
+		// YOLO detection - send frame to yolo thread 
+		// Yolo pop
+		//-----------------------------------------------
+
 		if (timeForDetection()) {
+			// Yolo push 
+			m_frameYolo.release();
 			m_Youtput.clear();
 
-			m_yolo.detect(frame, m_Youtput);
-			if (m_params.debugLevel > 2 && personsDetected(m_Youtput))
-				Beep(900, 10);// DDEBUG 			
+			m_frameYolo = frame.clone();
+#ifndef OFFLINE
+			g_detectionState.store(DETECTION_STATE::ImageReady);
+#else
+			m_yolo.detect(m_frameYolo, m_Youtput);
+#endif 
 		}
+		
 
-		m_concluder.add(m_BGSEGoutput, m_Youtput, m_frameNum); // add & match
+		if (g_detectionState.load() == DETECTION_STATE::DetectionDone) {
+			m_concluder.add(m_BGSEGoutput, m_Youtput, m_frameNum); // add & match
+			; // do cunclding with yolo results.....
+			g_detectionState.store(DETECTION_STATE::Idle);
+		}
+		else 
+			m_concluder.add(m_BGSEGoutput, std::vector<YDetection>(), m_frameNum);
+
 
 		m_concluder.track(); // consolidate detected objects 
 
@@ -614,6 +648,10 @@ bool CDetector::init(int w, int h, int imgSize , int pixelWidth, float scaleDisp
 	{
 		if (m_params.MLType <= 0) 
 			return false;
+
+		if (g_detectionState.load() == DETECTION_STATE::DetectionDone)
+			return false; // result was not handle (by concluder)
+
 
 		if (m_concluder.numberOfPersonsObBoard() > 0)
 			if (m_frameNum % m_params.skipDetectionFrames == 0)

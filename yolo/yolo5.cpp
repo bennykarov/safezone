@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <fstream>
 #include <filesystem>
+#include <atomic>
 
 #include <opencv2/opencv.hpp>
 #include "yolo5.hpp"
@@ -102,6 +103,32 @@ bool CYolo5::init(std::string modelFolder, bool is_cuda)
 	}
     return load_net(is_cuda);
 }
+
+
+
+void CYolo5::process(cv::Mat &image, std::vector<YDetection> &output, std::atomic<int> &detectionState)
+{
+	bool isCuda = false;
+	std::string modelFolder = "G:/src/BauoSafeZone/config_files/";
+	init(modelFolder, isCuda);
+
+	while (detectionState.load() != DETECTION_STATE::Terminate) {
+		if (detectionState.load() == DETECTION_STATE::ImageReady) {
+			// process here.....
+			Beep(1200, 30);
+			detect(image, output);
+			if (detectionState.load() != DETECTION_STATE::Terminate) // atom race !!!
+				detectionState.store(DETECTION_STATE::DetectionDone);
+		}
+	}
+}
+
+
+void CYolo5::detect()
+{
+	//detectionState.store(1);
+}
+
 
 /*--------------------------------------------------------------------------------------------------------------------------
         Main YDetection function:

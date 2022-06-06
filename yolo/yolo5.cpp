@@ -91,17 +91,24 @@ cv::Mat CYolo5::format_yolov5(const cv::Mat &source) {
 }
 
 
-
-
 bool CYolo5::init(std::string modelFolder, bool is_cuda)
 {
-	m_modelFolder = modelFolder;
+    m_modelFolder = modelFolder;
+    m_is_cuda = is_cuda;
+    return true;
+}
+
+
+bool CYolo5::init()
+{
+	
+    //m_modelFolder = modelFolder;
     m_class_list = load_class_list();
 	if (m_class_list.empty()) {
 		std::cout << "Error : Empty class list - ML detection won't work! \n";
 		return false;
 	}
-    return load_net(is_cuda);
+    return load_net(m_is_cuda);
 }
 
 
@@ -110,12 +117,13 @@ void CYolo5::process(cv::Mat &image, std::vector<YDetection> &output, std::atomi
 {
 	bool isCuda = false;
 	std::string modelFolder = "G:/src/BauoSafeZone/config_files/";
-	init(modelFolder, isCuda);
+	//init(modelFolder, isCuda);
+    init();
 
 	while (detectionState.load() != DETECTION_STATE::Terminate) {
 		if (detectionState.load() == DETECTION_STATE::ImageReady) {
 			// process here.....
-			Beep(1200, 30);
+			//Beep(1200, 30);
 			detect(image, output);
 			if (detectionState.load() != DETECTION_STATE::Terminate) // atom race !!!
 				detectionState.store(DETECTION_STATE::DetectionDone);
@@ -150,7 +158,7 @@ void CYolo5::detect(cv::Mat &image, std::vector<YDetection> &output)
     
     float *data = (float *)outputs[0].data;
 
-	int dimScale = 2;
+	int dimScale = 1;
 
 	const int dimensions = 85* dimScale; // 85;
     const int rows = 25200/ dimScale;

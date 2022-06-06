@@ -30,6 +30,7 @@ std::ofstream g_debugFile;
 bool printTime = false;
 
 
+
 API_EXPORT bool InitAlgoColors(BAUOTECH_AND_BENNY_KAROV_ALGO algo,
 							  uint32_t width,
 							  uint32_t height,
@@ -46,6 +47,7 @@ API_EXPORT bool InitAlgoColors(BAUOTECH_AND_BENNY_KAROV_ALGO algo,
 	
 }
 
+/*
 API_EXPORT bool InitGPU()
 {
 
@@ -53,7 +55,7 @@ API_EXPORT bool InitGPU()
 	return r;
 
 }
-
+*/
 
 // This is an example of an exported function.
 API_EXPORT int RunAlgoColors(BAUOTECH_AND_BENNY_KAROV_ALGO algo,
@@ -72,67 +74,37 @@ API_EXPORT int RunAlgoColors(BAUOTECH_AND_BENNY_KAROV_ALGO algo,
 	unsigned int grey, grey2;    // Used when applying greying effects
 
 
-
-#if 0 
-	if (printTime) { // DDEBUG DDEBUG DDEBUG BENNY !!!!
-		/*width = 1280;
-		height = 720;
-		image_size = width * height * 3;*/
-		auto now = std::chrono::system_clock::now();
-		std::time_t end_time = std::chrono::system_clock::to_time_t(now);
-
-		g_debugFile << "Input from main process: " << std::ctime(&end_time) << std::endl;
-	}
-	// objectCount can be maximum 50
-#endif 
-
-
-	
-
 	switch (algo)
 	{
 		
 		case ALGO_RAMI_LEVI:
 		{
 
-			if (frameNum == 0)
+			if (frameNum == 0) 
 			{
 				g_tracker.init(width, height, image_size, pixelWidth, 0.5);
 #if 1				
-				
-				//Beep(1000, 300);
 				g_debugFile.open("c:\\tmp\\algoapi_2.txt", std::ofstream::out | std::ofstream::app);
-
-				/*
-				auto now = std::chrono::system_clock::now();
-				std::time_t end_time = std::chrono::system_clock::to_time_t(now);
-
-				g_debugFile << "Init : " << std::ctime(&end_time) << std::endl;
-				*/
-			
 #endif 
 			}
 
+			if (width == 0) {
+				g_tracker.terminate();
+				return -1;
+			}
 #if 1 
 			// DDEBUG DDEBUG ---------------------
 			auto now1 = std::chrono::system_clock::now();
-			//std::time_t end_time = std::chrono::system_clock::to_time_t(now1);
-			// -------------------------------------
 #endif 
-			// take
-			g_tracker.process((void*)pData, pObjects);
 
+			g_tracker.process((void*)pData, pObjects);
 			*objectCount = (uint32_t)g_tracker.getDetectionCount();
 
 #if 1 
-				auto now2 = std::chrono::system_clock::now();
-				//std::time_t end_time = std::chrono::system_clock::to_time_t(now2);
-
-				//g_debugFile << "<<  End Process frame : " << std::ctime(&end_time);
-
-				typedef std::chrono::duration<float, std::milli> duration;
-				duration elapsed = now2 - now1;
-				g_debugFile << "   (Process Durection : " << elapsed.count() << " ms)" << std::endl;
+			auto now2 = std::chrono::system_clock::now();
+			typedef std::chrono::duration<float, std::milli> duration;
+			duration elapsed = now2 - now1;
+			g_debugFile << "   (Process Durection : " << elapsed.count() << " ms)" << std::endl;
 #endif 
 
 			frameNum++;

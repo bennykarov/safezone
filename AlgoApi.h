@@ -66,7 +66,7 @@ extern "C" {
 		uint32_t pixelWidth,  // always 32
 		uint32_t image_size);
 
-	API_EXPORT bool InitGPU();
+	//API_EXPORT bool InitGPU();
 
 
 #ifdef __cplusplus

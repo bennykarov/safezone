@@ -17,6 +17,7 @@ typedef struct ALGO_DETECTION_OBJECT_DATA
 
 typedef enum BAUOTECH_AND_BENNY_KAROV_ALGO
 {
+	NO_ALGO,
 	ALGO_RAMI_LEVI = 2001,
 	ALGO_ZOSMAN = 2002,
 	ALGO_DEFAULT = 2003,
@@ -28,7 +29,8 @@ typedef enum BAUOTECH_AND_BENNY_KAROV_ALGO
 	ALGO_DARKEN = 2009,
 	ALGO_BLUE = 2010,
 	ALGO_GREEN = 2011,
-	ALGO_RED = 2012
+	ALGO_RED = 2012,
+	BLACK_WHITE = 2013
 } BAUOTECH_AND_BENNY_KAROV_ALGO;
 
 
@@ -40,7 +42,7 @@ typedef enum BAUOTECH_AND_BENNY_KAROV_ALGO
 #ifdef __cplusplus
 extern "C" {
 
-
+		
 	 
 
 #define API_EXPORT __declspec(dllexport)
@@ -51,11 +53,20 @@ extern "C" {
 								 uint8_t *pData, 
 								 uint32_t width, 
 							  	 uint32_t height, 
+								 uint32_t pixelWidth,
 								 uint32_t image_size,
 							     uint8_t youDraw,
 								 ALGO_DETECTION_OBJECT_DATA *pObjects,
 								 uint32_t *objectCount);
-	 
+
+
+	API_EXPORT bool InitAlgoColors(BAUOTECH_AND_BENNY_KAROV_ALGO algo,
+		uint32_t width,
+		uint32_t height,
+		uint32_t pixelWidth,  // always 32
+		uint32_t image_size);
+
+	API_EXPORT bool InitGPU();
 
 
 #ifdef __cplusplus

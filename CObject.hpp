@@ -29,7 +29,16 @@ enum Labels
 	aeroplane,  //   4
 	bus,        //   5
 	train,      //   6  
-	truck       //   7
+	truck,       //   7
+	boat,
+	traffic_light,
+	fire_hydrant,
+	stop_sign,
+	parking_meter,
+	bench,
+	bird,
+	cat,
+	dog
 };
 
 
@@ -46,23 +55,35 @@ enum DETECT_TYPE {
 class CObject {
 public:
 	CObject() :m_bbox(0,0,0,0) { }
-	CObject(cv::Rect  r, int frameNum, int id, DETECT_TYPE  detectionType, Labels label)
+	CObject(cv::Rect  r, int frameNum, unsigned int id, DETECT_TYPE  detectionType, Labels label)
 	{
 		m_label = label;
 		m_detectionType = detectionType;
 		m_frameNum = frameNum;
 		m_bbox = r;
+		m_moving = 0; 
 	}
 
 	bool empty() { return m_bbox.width == 0; }
 
+	inline int getHiddenLen(int frameNum) {
+		return m_frameNum - frameNum;
+	}
+
+	inline bool isHinheritLabel() {
+		return m_label != m_finalLabel;
+	}
+
+
+
 public:
-	unsigned int	m_ID = -1;
+	unsigned int	m_ID = 0;
 	Labels			m_label = Labels::nonLabled; // current detection label
 	Labels			m_finalLabel = Labels::nonLabled;  // Conclusion of all detection labels
 	cv::Rect		m_bbox; // DDEBUG for debug
 	DETECT_TYPE		m_detectionType;
 	int				m_frameNum;
+	int				m_moving; // pixel distance
 
 private:
 };

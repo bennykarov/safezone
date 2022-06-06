@@ -34,34 +34,31 @@ struct Config
 	// Operational 
 	std::string videoName;
 	std::string roisName;
-	std::string modelFolder;
+
+	std::string modelFolder = "../BauoSafeZone/config_files/";
 	//int showTime = 1;
 	int showTruck = 0;
+	int showMotion = 0;
 	int debugLevel = 0;
 	float displayScale = 1.;
 	// OPtimization
 	int skipMotionFrames = CONSTANTS::DEFAULT_SKIP_FRAMES_BGSEG;
-	int skipdetectionFrames = CONSTANTS::DEFAULT_SKIP_FRAMES_YOLO; // in case  motion was detected 
+	int skipDetectionFrames = CONSTANTS::DEFAULT_SKIP_FRAMES_YOLO; // in case  motion was detected 
+	int skipDetectionFrames2 = 2; // when person is previously was deteted 
 	int detectionInterval = CONSTANTS::DEFAULT_INTERVAL_FRAMES_YOLO; // in case NO motion was detected 
 	// Algo
-	int motionType = 0;
+	int motionType = 1;
 	int trackerType = 0;
-	int MLType = 0;
+	int MLType = 10;
 	float scale = 0.5;
 	int waitKeyTime=1;
 	int record = 0;
 	int demoMode=0;
 	// MOG2 params:
-	int MHistory = 200;
-	float MvarThreshold = 20.0;
+	int MHistory = 100;
+	float MvarThreshold = 580.0;
 	float MlearningRate = -1.;
-	/*
-	int beep = 0;
-	int showBoxesNum = 1;
-	int prediction = 1;
-	int onlineTracker = 0;
-	float shadowclockDirection = 0;
-	int detectionFPS = 2;
-	*/
+	int useGPU = 1;
 	std::vector <int> camROI = { 0,0,0,0 }; // RECT 
+	cv::Rect  motionROI;
 	};

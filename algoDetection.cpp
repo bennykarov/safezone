@@ -8,10 +8,12 @@
 #include "opencv2/opencv.hpp"
 #include "opencv2/core/core.hpp"
 #include "opencv2/videoio.hpp"
-
+#ifndef NOCUDAPC
+#include <opencv2/cudaarithm.hpp>
+#endif 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
-//#include <boost/lexical_cast.hpp> 
+#include <boost/lexical_cast.hpp> 
 
 
 #include "AlgoApi.h"
@@ -36,14 +38,36 @@
 #define MAX_PERSON_DIM	cv::Size(40, 90) // DDEBUG CONST
 
 
-#define EXE_MODE
-
+#ifndef NOCUDAPC
+#ifdef _DEBUG
+#pragma comment(lib, "opencv_core454d.lib")
+#pragma comment(lib, "opencv_highgui454d.lib")
+#pragma comment(lib, "opencv_video454d.lib")
+#pragma comment(lib, "opencv_videoio454d.lib")
+#pragma comment(lib, "opencv_imgcodecs454d.lib")
+#pragma comment(lib, "opencv_imgproc454d.lib")
+#pragma comment(lib, "opencv_tracking454d.lib")
+#pragma comment(lib, "opencv_dnn454d.lib")
+//#pragma comment(lib, "opencv_calib3d454d.lib")
+//#pragma comment(lib, "opencv_bgsegm454d.lib")
+#else
+#pragma comment(lib, "opencv_core454.lib")
+#pragma comment(lib, "opencv_highgui454.lib")
+#pragma comment(lib, "opencv_video454.lib")
+#pragma comment(lib, "opencv_videoio454.lib")
+#pragma comment(lib, "opencv_imgcodecs454.lib")
+#pragma comment(lib, "opencv_imgproc454.lib")
+#pragma comment(lib, "opencv_tracking454.lib")
+#pragma comment(lib, "opencv_dnn454.lib")
+//#pragma comment(lib, "opencv_world454.lib")
+#endif
+#else
 #ifdef _DEBUG
 #pragma comment(lib, "opencv_world454d.lib")
 #else
 #pragma comment(lib, "opencv_world454.lib")
-#endif
-
+#endif 
+#endif 
 namespace  ALGO_DETECTOPN_CONSTS {
 	const int MIN_CONT_AREA = 20 * 10;
 	const int MAX_CONT_AREA = 1000 * 1000;
@@ -79,6 +103,20 @@ std::vector <CRoi2frame>  readROISfile(std::string fname)
 }
 
 
+void setConfigDefault(Config &params)
+{
+	params.debugLevel = 0;
+	params.showTruck = 0;
+	params.modelFolder = "C:/SRC/BauoSafeZone/config_files/";
+	params.motionType = 1;
+	params.MLType = 10;
+	params.MHistory = 100;
+	params.MvarThreshold = 580.0;
+	params.MlearningRate = -1;
+	params.skipMotionFrames = 1;
+	params.skipDetectionFrames = 3;
+	params.skipDetectionFrames2 = 3;
+}
 
 bool readConfigFile(std::string ConfigFName, Config &conf)
 {
@@ -97,13 +135,19 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	conf.demoMode = pt.get<int>("GENERAL.demo", conf.demoMode);
 	conf.debugLevel = pt.get<int>("GENERAL.debug", conf.debugLevel);
 	conf.showTruck = pt.get<int>("GENERAL.showTruck", conf.showTruck);
+	conf.showMotion = pt.get<int>("GENERAL.showMotion", conf.showMotion);
 	conf.camROI = to_array<int>(pt.get<std::string>("GENERAL.camROI", "0,0,0,0"));
 	// [OPTIMIZE]  Optimization
-	conf.skipMotionFrames = pt.get<int>("ALGO.skipMotion", conf.skipMotionFrames);
-	conf.skipdetectionFrames = pt.get<int>("ALGO.skipDetection", conf.skipdetectionFrames);
+	conf.skipMotionFrames = pt.get<int>("ALGO.stepMotion", conf.skipMotionFrames);
+	conf.skipDetectionFrames = pt.get<int>("ALGO.stepDetection", conf.skipDetectionFrames);
+	conf.skipDetectionFrames2 = pt.get<int>("ALGO.stepDetection2", conf.skipDetectionFrames2);
 	//---------
 	// ALGO:
 	//---------
+	std::vector <int> motionROI_vec = to_array<int>(pt.get<std::string>("ALGO.motionROI", "0,0,0,0"));
+	if (motionROI_vec[2] > 0) // width
+		conf.motionROI = cv::Rect(motionROI_vec[0], motionROI_vec[1], motionROI_vec[2], motionROI_vec[3]);
+
 	conf.modelFolder = pt.get<std::string>("ALGO.modelFolder", conf.modelFolder);
 	conf.scale = pt.get<float>("ALGO.scale", conf.scale);
 	conf.MHistory = pt.get<int>("ALGO.MHistory", conf.MHistory);
@@ -111,7 +155,10 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	conf.MlearningRate = pt.get<float>("ALGO.MlearningRate", conf.MlearningRate);
 	conf.motionType = pt.get<int>("ALGO.motion", conf.motionType);
 	conf.trackerType = pt.get<int>("ALGO.tracker", conf.trackerType);
-	conf.MLType      = pt.get<int>("ALGO.ML", conf.MLType);
+	conf.MLType = pt.get<int>("ALGO.ML", conf.MLType);
+	conf.useGPU = pt.get<int>("ALGO.useGPU",1) ;
+
+	
 	/*
 	conf.prediction = pt.get<int>("ALGO.predict", conf.prediction);
 	conf.onlineTracker = pt.get<int>("ALGO.onlineTracker", conf.onlineTracker);
@@ -159,59 +206,144 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 		return counter;
 	}
 
+	int checkForGPUs()
+	{
+		using namespace cv::cuda;
+
+		std::cout << "--------------------------";
+		std::cout << "GPU INFO : ";
+		printShortCudaDeviceInfo(getDevice());
+		int cuda_devices_number = getCudaEnabledDeviceCount();
+		cout << "CUDA Device(s) Number: " << cuda_devices_number << endl;
+		
+		DeviceInfo _deviceInfo;
+		bool _isd_evice_compatible = _deviceInfo.isCompatible();
+		cout << "CUDA Device(s) Compatible: " << _isd_evice_compatible << endl;
+		std::cout << "--------------------------";
+		return cuda_devices_number;
+	}
+
+
+
+	void debugSaveParams(int w, int h, int imgSize, int pixelWidth, float scaleDisplay, Config params)
+	{
+		std::ofstream debugFile("c:\\tmp\\algoapi.txt");
+
+		debugFile << w << " , " << h << " , " << imgSize << " , " << pixelWidth << " , " << scaleDisplay << " , " << params.useGPU << " , " << params.MLType << " , " << params.skipDetectionFrames << " , " << params.skipDetectionFrames2 << "\n";
+		debugFile.close();
+
+	}
+
+	void ERROR_BEEP()
+	{
+		Beep(1200, 1200); // error beep
+		Beep(1200, 1200); // error beep
+	}
+
+
+
 /*---------------------------------------------------------------------------------------------
  *						D E T E C T O R       C L A S S  
  *--------------------------------------------------------------------------------------------*/
+bool CDetector::InitGPU()
+{
 
-bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay)
+	if (!m_yolo.init(m_params.modelFolder,true)) 
+	{
+		std::cout << "Cant init YOLO5 net , quit \n";
+		return false;
+	}
+	return true;
+	
+}
+
+
+bool CDetector::init(int w, int h, int imgSize , int pixelWidth, float scaleDisplay)
 	{
 		m_width = w;
 		m_height = h;
 		m_colorDepth = imgSize / (w*h);
 
-		readConfigFile("config.ini", m_params);
+		setConfigDefault(m_params);
+		readConfigFile("C:\\Program Files\\Bauotech\\Dll\\Algo\\config.ini", m_params);
+		debugSaveParams(w, h, imgSize, pixelWidth, scaleDisplay, m_params);
+
+
+		if (1)
+			m_colorDepth = imgSize / (w * h);
+		else
+			m_colorDepth = 4; //  pixelWidth / 8;  DDEBUG CONST
+
+	
+
+		if (m_params.useGPU == 0) 
+			m_isCuda = false;
+		else 
+			m_isCuda = checkForGPUs() > 0;	 
+
+
+#if 0		if (m_isCuda)
+			MessageBoxA(0, "RUN WITH GPU", "Info", MB_OK);
+		else 
+			MessageBoxA(0, "RUN WITOUT GPU", "Info", MB_OK);
+#endif 
+
+
 
 		if (m_params.MLType > 0)
-			if (!m_yolo.init(m_params.modelFolder, isCuda)) {
+		{
+			if (!m_yolo.init(m_params.modelFolder, m_isCuda)) {
 				std::cout << "Cant init YOLO5 net , quit \n";
+
 				return false;
 			}
+		}
 
 		// MOG2 
-		if (m_params.motionType > 0) {
+		if (m_params.motionType > 0)
+		{
 			int emphasize = CONSTANTS::MogEmphasizeFactor;
 			m_bgSeg.init(m_params.MHistory, m_params.MvarThreshold, false, emphasize);
 			m_bgSeg.setLearnRate(m_params.MlearningRate);
-		}
+		}	
 
 		if (1) {
-			m_concluder.init();
+			m_concluder.init(m_params.debugLevel);			
 			m_concluder.setPersonDim(MAX_PERSON_DIM); // DDEBUG CONST
 		}
-		// TESTS:
-		// m_tracker.track_main("G:/data/bauoTech/Alenbi/04-04-2022/B_ch08.mp4", m_params.trackerType, 13000);   exit(0);
 
-#if 0
-		// DDEBUG DDEBUG : Read RIO's from a file 
-		if (!m_params.roisName.empty())
-			m_roiList = readROISfile(m_params.roisName);
-		if (m_params.scale != 1.)
-			for (auto &roi : m_roiList)
-				roi.bbox = scaleBBox(roi.bbox, m_params.scale);
-#endif 
+
+		// Alloce buffer
+		size_t sizeTemp(m_width * m_height * m_colorDepth);
+		if (m_data == NULL)
+			m_data = malloc(sizeTemp);
+		//Sleep(1000);
 
 		return true;
 	}
 
 
-	int CDetector::processFrame(cv::Mat &frame)
+	int CDetector::processFrame(cv::Mat &frame_)
 	{
-		bool is_cuda = false;
-
 		// Reset process flags
 		m_bgMask.setTo(0);
 		m_BGSEGoutput.clear();
 		m_motionDetectet = 0;
+
+
+		cv::Mat frame;
+		if (frame_.channels() == 4) {
+			cv::cvtColor(frame_, frame, cv::COLOR_BGRA2BGR);
+		}
+		else
+			frame = frame_;
+
+		if (0)
+		{
+			imshow("DLL benny", frame);
+			cv::waitKey(1);
+		}
+
 
 		// BG seg detection
 		//--------------------
@@ -235,39 +367,20 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 		// YOLO detection
 		//--------------------
 		if (timeForDetection()) {
-			//Beep(1000, 20); // DDEBUG 
 			m_Youtput.clear();
-			//int64 timer = getTickCount();
-
-			/*
-			if (1) {// DEBUG
-				cv::Mat testImg = frame(cv::Rect(0, 0, frame.cols / 6, frame.rows / 6));
-				auto tp1 = chrono::system_clock::now();
-				m_yolo.detect(testImg, m_Youtput);
-				auto tp2 = chrono::system_clock::now();
-				chrono::duration<long double> delta__time = tp2 - tp1;
-				std::cout << "Partial \ Full Yolo duration = (" << delta__time.count() << " : ";
-			}
-			*/
 
 			m_yolo.detect(frame, m_Youtput);
-			if (personsDetected(m_Youtput))   
-				Beep(900, 10);// DDEBUG 
+			if (m_params.debugLevel > 2 && personsDetected(m_Youtput))
+				Beep(900, 10);// DDEBUG 			
 		}
 
 		m_concluder.add(m_BGSEGoutput, m_Youtput, m_frameNum); // add & match
-	/*
-		m_concluder.addSimple(m_Youtput);
-		m_concluder.process();
-		*/
 
-		m_concluder.track();
+		m_concluder.track(); // consolidate detected objects 
 
 
-#ifdef EXE_MODE
-		if (!m_bgMask.empty())
+		if (m_params.debugLevel > 0 &&  !m_bgMask.empty())
 			cv::imshow("m_bgMask", m_bgMask);
-#endif
 
 		int tracked_count;
 		tracked_count = m_BGSEGoutput.size();
@@ -279,9 +392,13 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 
 	int CDetector::process(void *dataOrg, ALGO_DETECTION_OBJECT_DATA *pObjects)
 	{
-		size_t sizeTemp(m_width * m_height * m_colorDepth); 
+		
+		/*
+		size_t sizeTemp(m_width * m_height * m_colorDepth);
 		if (m_data == NULL)
 			m_data  = malloc(sizeTemp);
+		*/
+
 
 		//memcpy(m_data, dataOrg, sizeTemp); // buffering NOT optimized
 		m_data = dataOrg; // No buffering - use original buffer for processing 
@@ -289,6 +406,7 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 		m_frameOrg = cv::Mat(m_height, m_width, depth2cvType(m_colorDepth), m_data);
 		if (m_frameOrg.empty()) {
 			std::cout << "read() got an EMPTY frame\n";
+			ERROR_BEEP();
 			return -1;
 		}
 
@@ -310,16 +428,18 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 
 		objects_tracked = processFrame(m_frame);
 
-		pObjects->reserved1_personsCount = 0;
+
+		pObjects->reserved1_personsCount = m_concluder.getPersonObjects(m_frameNum).size();
 		pObjects->reserved2_motion = objects_tracked; //  m_motionDetectet ? 1 : 0;
 
 		// Draw overlays :
 		//draw(m_frameOrg, m_Youtput , 1.0 / m_params.scale);
-		draw(m_frameOrg, m_BGSEGoutput, 1.0 / m_params.scale);
+		if (m_params.showMotion)
+			draw(m_frameOrg, m_BGSEGoutput, 1.0 / m_params.scale);
+		
 		draw(m_frameOrg, 1.0 / m_params.scale);
 
 		drawInfo(m_frameOrg);
-		//cv::putText(m_frameOrg, std::to_string(m_frameNum) , cv::Point(200, m_frameOrg.rows - 200), cv::FONT_HERSHEY_SIMPLEX, 1., cv::Scalar(0, 255, 0));
 	
 		return m_frameNum++;
 	}
@@ -377,7 +497,7 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 	{
 		cv::Scalar  color(0, 0, 0);
 
-		for (auto obj : m_concluder.getObjects(m_frameNum)) {
+		for (auto obj : m_concluder.getPersonObjects(m_frameNum)) {
 			auto box = scaleBBox(obj.m_bbox, scale);
 			box += cv::Point(m_camROI.x, m_camROI.y);
 			auto classId = obj.m_finalLabel;
@@ -408,7 +528,7 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 		// Draw other Labeled objects (only moving objects)
 		if (m_params.showTruck > 0) {
 			bool showOnlyWhileMoving = m_params.showTruck == 1;
-			for (auto obj : m_concluder.getObjectsOthers(m_frameNum, showOnlyWhileMoving)) {
+			for (auto obj : m_concluder.getVehicleObjects(m_frameNum, showOnlyWhileMoving)) {
 				auto box = scaleBBox(obj.m_bbox, scale);
 				box += cv::Point(m_camROI.x, m_camROI.y);
 				auto classId = obj.m_finalLabel;
@@ -416,11 +536,20 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 				if (classId == Labels::train || classId == Labels::bus) // DDEBUg
 					classId = Labels::truck;
 
-				color = cv::Scalar(255, 0, 0);
-				cv::rectangle(img, box, color, 3);
-				// Add lablel
-				cv::rectangle(img, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color, cv::FILLED);
-				cv::putText(img, m_yolo.getClassStr(classId).c_str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+				// Draw vehicles and othe 
+				if (classId == Labels::truck) {
+					color = cv::Scalar(155, 155, 0);
+					cv::Point debug = centerOf(box);
+					cv::putText(img, "T", centerOf(box), cv::FONT_HERSHEY_SIMPLEX, 2.5, color, 10);
+
+				}
+				else {
+					color = cv::Scalar(255, 0, 0);
+					cv::rectangle(img, box, color, 3);
+					// Add lablel
+					cv::rectangle(img, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color, cv::FILLED);
+					cv::putText(img, m_yolo.getClassStr(classId).c_str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+				}
 			}
 		}
 	}
@@ -461,7 +590,8 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 		cv::Scalar color(255, 0, 0);
 		cv::rectangle(img, m_camROI, color, 2);
 
-		cv::putText(m_frameOrg, std::to_string(m_frameNum) , cv::Point(20, img.rows - 20), cv::FONT_HERSHEY_SIMPLEX, 1., cv::Scalar(0, 255, 0));
+		if (0)
+			cv::putText(m_frameOrg, std::to_string(m_frameNum) , cv::Point(20, img.rows - 20), cv::FONT_HERSHEY_SIMPLEX, 1., cv::Scalar(0, 255, 0));
 
 
 	}
@@ -473,22 +603,39 @@ bool CDetector::init(int w, int h, int imgSize , bool isCuda, float scaleDisplay
 	}
 
 
+	// Get motion (bgseg) interval 
 	bool CDetector::timeForMotion() 
 	{ 
 		return (m_params.motionType > 0 && m_frameNum % m_params.skipMotionFrames == 0);
 	}
 	
+	// Get detection (YOLO) interval 
 	bool CDetector::timeForDetection()
 	{
 		if (m_params.MLType <= 0) 
 			return false;
+
+		if (m_concluder.numberOfPersonsObBoard() > 0)
+			if (m_frameNum % m_params.skipDetectionFrames == 0)
+				return true;
 		if (m_BGSEGoutput.size() > 0) {
-			if (m_frameNum %  m_params.skipdetectionFrames == 0)
+			if (m_frameNum % m_params.skipDetectionFrames == 0)
+				return true;
+		}
+		if (m_BGSEGoutput.size() > 0) {
+			if (m_frameNum %  m_params.skipDetectionFrames == 0)
 				return true;
 		}
 		else if (m_frameNum %  m_params.detectionInterval == 0)
 				return true;
-		else return 
-			false;
+
+		// otherwise 
+		return   false;
 
 	}
+
+	int CDetector::getDetectionCount()
+	{
+		return m_concluder.getPersonObjects(m_frameNum).size(); // not optimized !!!
+	}
+

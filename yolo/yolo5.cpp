@@ -13,6 +13,7 @@ cv::Rect scaleMe(cv::Rect r, float scale, cv::Size imgSize)
         return r;
 
     float sWidth = (float)r.width * scale;
+
     float sHeight  = (float)r.height * scale;
     cv::Rect sRect = r;    
     sRect.x =  r.x - int( (sWidth - float(r.width)) * 0.5);
@@ -122,8 +123,10 @@ void CYolo5::detect(cv::Mat &image, std::vector<YDetection> &output)
     
     float *data = (float *)outputs[0].data;
 
-    const int dimensions = 85;
-    const int rows = 25200;
+	int dimScale = 2;
+
+	const int dimensions = 85* dimScale; // 85;
+    const int rows = 25200/ dimScale;
     
     std::vector<int> class_ids;
     std::vector<float> confidences;
@@ -158,7 +161,7 @@ void CYolo5::detect(cv::Mat &image, std::vector<YDetection> &output)
 
         }
 
-        data += 85;
+        data += dimensions;
 
     }
 

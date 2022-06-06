@@ -12,7 +12,7 @@
 #include "concluder.hpp"
 
 
-void CConcluder::init() { 	m_active = true; }
+void CConcluder::init(int debugLevel) { m_debugLevel = debugLevel; 	m_active = true; }
 
 void CConcluder::add(std::vector <cv::Rect>  BGSEGoutput, std::vector <YDetection> YoloOutput, int frameNum)
 {
@@ -36,7 +36,6 @@ void CConcluder::add(std::vector <cv::Rect>  BGSEGoutput, std::vector <YDetectio
 			// New object
 			m_objects.push_back(std::vector <CObject>());
 			m_objects.back().push_back(newObj);
-			//m_goodObjects.push_back(newObj);
 		}
 
 		//m_objects.back().back().m_finalLabel = calcFinalLable(m_objects.back());
@@ -47,6 +46,9 @@ void CConcluder::add(std::vector <cv::Rect>  BGSEGoutput, std::vector <YDetectio
 	for (auto Yobj : YoloOutput) {
 		CObject newObj(Yobj.box, frameNum, 0, DETECT_TYPE::ML, (Labels)Yobj.class_id);  // 	CObject(cv::Rect  r, int frameNum, int id, DETECT_TYPE  detectionType, Labels label)
 
+		if (newObj.m_label == Labels::person)
+			int debug = 10;
+
 		int ind = bestMatch(Yobj.box, 0.5);
 		if (ind >= 0) {
 			m_objects[ind].push_back(newObj);
@@ -56,14 +58,18 @@ void CConcluder::add(std::vector <cv::Rect>  BGSEGoutput, std::vector <YDetectio
 			// New object
 			m_objects.push_back(std::vector <CObject>());
 			m_objects.back().push_back(newObj);
+			if (newObj.m_label == Labels::person)
+				int debug = 10;
 		}
 
 		//m_objects.back().back().m_finalLabel = calcFinalLable(m_objects.back());
 	}
 
 	int rem = pruneObjects();
-	if (rem > 0)
+	/*
+	if (m_debugLevel > 2 && rem > 0)
 		std::cout << "Number of pruned (elders) object = " << rem << "\n";  //int debug = 10;
+	*/
 
 }
 
@@ -72,7 +78,9 @@ void CConcluder::add(std::vector <YDetection> YoloOutput, int frameNum)
 }
 
 
-
+/*------------------------------------------------------------------
+ *	Match RECT to prev RECTs in objects list 
+ *-----------------------------------------------------------------*/
 int CConcluder::bestMatch(cv::Rect box, float overlappedRatio, std::vector <int> ignoreInds)
 {
 	std::vector <int>  bestInds;
@@ -83,8 +91,10 @@ int CConcluder::bestMatch(cv::Rect box, float overlappedRatio, std::vector <int>
 			continue; // Ignore this object
 		for (auto obj : m_objects[i]) {
 			float overlappingRatio = bboxesBounding(obj.m_bbox, box); // most new box overlapped old box
-			// Check overlapping ratio and that size are similars (kind of)
-			if (overlappingRatio > overlappedRatio && similarAreas(obj.m_bbox, box, 0.6*0.6)) {
+			// Check (1) overlapping ratio (2) The sizes are similars (kind of) (3) the distance is reasonable 
+			if (overlappingRatio > overlappedRatio && 
+				similarAreas(obj.m_bbox, box, 0.6*0.6) &&
+				distance(obj.m_bbox, box) < CONCLUDER_CONSTANTS::MAX_MOTION_PER_FRAME) {
 				bestInds.push_back(i);
 				bestScores.push_back(overlappingRatio);
 			}
@@ -99,7 +109,20 @@ int CConcluder::bestMatch(cv::Rect box, float overlappedRatio, std::vector <int>
 	return bestInds[index];
 }
 
-int CConcluder::track() { return 0; }
+int CConcluder::track() 
+{ 
+	m_detectedObjects.clear(); // TEMP clearing
+
+	for (auto& obj : m_objects) {
+		CObject consObj = consolidateObj(obj);
+		if (!consObj.empty() && obj.back().m_finalLabel != Labels::nonLabled) {
+			consObj.m_moving = isMoving(obj);
+			m_detectedObjects.push_back(consObj);
+		}
+	}
+
+	return 0; 
+}
 
 #if 0
 /*---------------------------------------------------------------------------
@@ -126,39 +149,47 @@ std::vector <CObject> CConcluder::getObjects_(int frameNum)
 /*---------------------------------------------------------------------------
 	Get object : person labeled and stable BGSeg  
  ---------------------------------------------------------------------------*/
-std::vector <CObject> CConcluder::getObjects(int frameNum)
+std::vector <CObject> CConcluder::getPersonObjects(int frameNum)
 {
-	m_goodObjects.clear(); // TEMP clearing
+	std::vector <CObject> personObjects;
 
-	for (auto &obj : m_objects) {
-		CObject consObj = consolidateObj(obj);
-		if (!consObj.empty())
-			m_goodObjects.push_back(consolidateObj(obj));
-	}
+	std::copy_if(m_detectedObjects.begin(), m_detectedObjects.end(), std::back_inserter(personObjects),
+		[](CObject obj) { return obj.m_label == Labels::person; });
+	/*
+	for (auto& obj : m_detectedObjects) 
+		if (obj.m_label == Labels::person)    personObjects.push_back(obj);
+	*/
+
+	return personObjects;
 
 
 #if 0
-	// Smooth rect dimensions (by history sizes):
-	{
-		cv::Size avgDim(0, 0);
-		for (auto &obj : m_objects) {
-			for (int i = obj.size() - CONCLUDER_CONSTANTS::GOOD_TRACKING_LEN - 1; i < obj.size(); i++) {
-				avgDim.width += obj[i].m_bbox.width;
-				avgDim.height += obj[i].m_bbox.height;
-			}
-			avgDim.width += obj.back().m_bbox.width; // double inut (weight) to last rect 
-			avgDim.height += obj.back().m_bbox.height;
+	m_personObjects.clear(); // TEMP clearing
 
-			// Avrg
-			avgDim.width = (int)(float)avgDim.width / (float)(CONCLUDER_CONSTANTS::GOOD_TRACKING_LEN + 1);
-			avgDim.height = (int)(float)avgDim.height / (float)(CONCLUDER_CONSTANTS::GOOD_TRACKING_LEN + 1);
-
-			obj.back().m_bbox = resize(obj.back().m_bbox, avgDim);
-		}
+	for (auto &obj : m_objects) {
+		CObject consObj = consolidateObj(obj);
+		if (!consObj.empty() && consObj.m_label == Labels::person)
+			m_personObjects.push_back(consolidateObj(obj));
 	}
+	return m_personObjects;
 #endif 
 
-	return m_goodObjects;
+}
+
+std::vector <CObject> CConcluder::getVehicleObjects(int frameNum, bool onlyMoving)
+{
+
+	std::vector <CObject> vehicleObjects;
+
+	if (onlyMoving)
+		std::copy_if(m_detectedObjects.begin(), m_detectedObjects.end(), std::back_inserter(vehicleObjects),
+			[](CObject obj) { return (obj.m_label == Labels::car || obj.m_label == Labels::truck || obj.m_label == Labels::bus) &&    obj.m_moving > 0; });
+	else
+		std::copy_if(m_detectedObjects.begin(), m_detectedObjects.end(), std::back_inserter(vehicleObjects),
+			[](CObject obj) { return obj.m_label == Labels::car || obj.m_label == Labels::truck || obj.m_label == Labels::bus; });
+
+
+	return vehicleObjects;
 }
 
 
@@ -166,18 +197,23 @@ std::vector <CObject> CConcluder::getObjects(int frameNum)
  * Get all objects that are NOT person or BGSeg - all other Labeles objects
  * "onlyMoving" - return only objects in motion  
  -----------------------------------------------------------------------------------------*/
-std::vector <CObject> CConcluder::getObjectsOthers(int frameNum, bool onlyMoving)
+std::vector <CObject> CConcluder::getOtherObjects(int frameNum, bool onlyMoving)
 {
-	std::vector <CObject> otherObjects;
 
-	for (auto obj : m_objects) {
-		if (obj.back().m_finalLabel != Labels::nonLabled && obj.back().m_finalLabel != Labels::person)
-			if (!onlyMoving || isMoving(obj))
-				otherObjects.push_back(obj.back());
-	}
+		std::vector <CObject> otherObjects;
+		
+		if (onlyMoving)
+			std::copy_if(m_detectedObjects.begin(), m_detectedObjects.end(), std::back_inserter(otherObjects),
+				[](CObject obj) { return obj.m_label != Labels::person && obj.m_label != Labels::nonLabled && obj.m_moving > 0; });
+		else 
+			std::copy_if(m_detectedObjects.begin(), m_detectedObjects.end(), std::back_inserter(otherObjects),
+				[](CObject obj) { return obj.m_label != Labels::person && obj.m_label != Labels::nonLabled; });
 
-	return otherObjects;
+
+		return otherObjects;
 }
+
+
 
 
 std::vector <int> CConcluder::getObjectsInd(int frameNum)
@@ -264,7 +300,7 @@ CObject   CConcluder::consolidateObj_(std::vector <CObject> objectHist)
 #endif 
 
 /*----------------------------------------------------------------------------------------------
- * Gather all information to a final object:
+ * Gather all history information to a final (single) object:
  * If (even) once in history the obj was labeled - inherit this label (for INHERIT_LABEL_LEN  frames)
 ----------------------------------------------------------------------------------------------*/
 CObject   CConcluder::consolidateObj(std::vector <CObject> &objectHist)
@@ -275,23 +311,22 @@ CObject   CConcluder::consolidateObj(std::vector <CObject> &objectHist)
 	int backward = MIN(CONCLUDER_CONSTANTS::INHERIT_LABEL_LEN, objectHist.size());
 	int lastInd = objectHist.size() - backward;
 
-	// -1- Look for any person label
-	//---------------------------------
+	// -1- Look  for  latest  'person' labeled objects
+	//----------------------------------------------------
 	int i = objectHist.size()-1;
 	//auto  itPerson = std::find_if(startIt, objectHist.end(), [](CObject s) { return s.m_label == Labels::person; });
 	while (i >= lastInd && objectHist[i].m_label != Labels::person) i--;
 	if (i >= lastInd) {
 		consObj.m_finalLabel = consObj.m_label = objectHist.back().m_finalLabel = objectHist[i].m_label;
-		// Inherit original (latest) rect size 
+		// Inherit latest labled rect size :
 		cv::Point tl = objectHist.back().m_bbox.tl();
 		consObj.m_bbox = centerBox(centerOf(objectHist.back().m_bbox), cv::Size(objectHist[i].m_bbox.width, objectHist[i].m_bbox.height));
 		return consObj;
 	}
 
-	// -2- Look for any other label
+	// -2- Other labels than Person
 	//---------------------------------
 	i = objectHist.size() - 1;
-	//auto  itPerson = std::find_if(startIt, objectHist.end(), [](CObject s) { return s.m_label == Labels::person; });
 	while (i >= lastInd && objectHist[i].m_label == Labels::nonLabled) i--;
 	if (i >= lastInd) {
 		consObj.m_finalLabel = consObj.m_label = objectHist.back().m_finalLabel = objectHist[i].m_label;
@@ -303,7 +338,7 @@ CObject   CConcluder::consolidateObj(std::vector <CObject> &objectHist)
 		return consObj;
 	}
 
-	// CASE 3:   BGSeg (stable) object 
+	// CASE 3:   BGSeg (unlabeled) & stable  object 
 	if (objectHist.size() >= CONCLUDER_CONSTANTS::GOOD_TRACKING_LEN) {
 		// smooth rect & pos ...
 		return 	objectHist.back();
@@ -318,14 +353,14 @@ CObject   CConcluder::consolidateObj(std::vector <CObject> &objectHist)
  -----------------------------------------------------------------*/
 bool CConcluder::isMoving(std::vector <CObject> obj)
 {
-	const int MIN_LEN = 5;  // in frames 
-	const double MIN_DISTANCE = MIN_LEN * 2; // in pixels
+	const int MIN_LEN = 20;  // in frames 
+	const double MIN_DISTANCE = (double)MIN_LEN * 0.5; // in pixels
 
 
 	if (obj.size() < MIN_LEN)
 		return false;
 
-	int dist = distance(centerOf(obj.back().m_bbox), centerOf(obj[obj.size() - MIN_LEN - 1].m_bbox));
+	int dist = distance(centerOf(obj.back().m_bbox), centerOf(obj[obj.size() - MIN_LEN].m_bbox));
 	if (dist >= MIN_DISTANCE)
 		return true;
 
@@ -359,9 +394,17 @@ int CConcluder::pruneObjects()
 	int orgSize = m_objects.size();
 	// Remove un-detected objects (fade)
 	for (int i = 0; i < m_objects.size(); i++) {
-		if (m_frameNum - m_objects[i].back().m_frameNum > CONCLUDER_CONSTANTS::MAX_HIDDEN_FRAMES)
+		int expiredLen = (m_objects[i].back().m_label == Labels::person) ? CONCLUDER_CONSTANTS::MAX_PERSON_HIDDEN_FRAMES : CONCLUDER_CONSTANTS::MAX_OTHERS_HIDDEN_FRAMES;
+		if (m_frameNum - m_objects[i].back().m_frameNum > expiredLen)
 			m_objects.erase(m_objects.begin() + i--);
 	}
 
 	return orgSize - m_objects.size();
+}
+
+
+// return number of person on board (including hidden objects)
+int CConcluder::numberOfPersonsObBoard()
+{
+	return getPersonObjects(m_frameNum).size();
 }

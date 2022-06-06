@@ -13,7 +13,8 @@
 
 
 
-namespace fs = std::experimental::filesystem;
+namespace efs = std::experimental::filesystem;
+namespace fs = std::filesystem;
 
 
   std::vector <std::string>  FILE_UTILS::list_files_in_folder(std::string path, bool reverseOrder)
@@ -782,12 +783,6 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 	  r1.width =  r1.width * alpha + r2.width *  (1. - alpha);
 	  r1.height = r1.height* alpha + r2.height * (1. - alpha);
 	  moveByCenter(r1, blendedCenter);
-
-	/*
-	  if (r1 != debugOrg) // DDEBUG 
-		   Beep(1200, 20);
-	*/
-
   }
 
   cv::Rect centerBox(cv::Point center, cv::Size size)

@@ -37,13 +37,17 @@ enum STAGE {
 
 class CDetector {
 public:
-	bool init(int w, int h, int imgSize, bool isCuda, float scaleDisplay = 0.5);
+	bool init(int w, int h, int imgSize, int pixelWidth, float scaleDisplay = 0.5);
+	bool InitGPU();
 	int process(void *dataTemp, ALGO_DETECTION_OBJECT_DATA *pObjects);
 	int processFrame(cv::Mat &frame);
 	void draw(cv::Mat &img, float scale);   // by Concluder (good objects)
 	void draw(cv::Mat &img, std::vector<YDetection> Youtput, float scale);   // for Yolo
 	void draw(cv::Mat &img, std::vector<cv::Rect>  rois, float scale);		 // for BGSeg
 	void drawInfo(cv::Mat &img);		
+
+	int getDetectionCount();
+
 
 	//int draw();
 
@@ -111,23 +115,12 @@ private:
 	std::vector <cv::Rect>  m_BGSEGoutput; // humna candidates
 	std::vector <cv::Rect>  m_BGSEGoutputLarge; // Larger objects (not a human)
 
-#if 0
-	int status=0;
-
-	// Tracker members
-	cv::Rect m_trackerROI;
-	// object "class":
-	std::vector<CDetector>  m_trackers;
-	std::vector<CObject>       m_objects;
-
-	// Detection classes:
-	std::vector <CPredict>  m_predictions;
-#endif  
 	CBGSubstruct   m_bgSeg;
 	int m_colorDepth = 4;
 	Config m_params;
 	std::vector <CRoi2frame>  m_roiList;
 	unsigned int m_objectID_counter = 0;
 	cv::Rect m_camROI = cv::Rect(0,0,0,0);
+	bool m_isCuda;
 
 };

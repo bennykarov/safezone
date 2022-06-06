@@ -300,13 +300,11 @@ bool CDetector::init(int w, int h, int imgSize , int pixelWidth, float scaleDisp
 
 		//if (m_params.MLType > 0)  {
 
-#ifdef OFFLINE
 		if (!m_yolo.init(m_params.modelFolder, m_isCuda)) {
 				std::cout << "Cant init YOLO5 net , quit \n";
 
 				return false;
 		}
-#endif 
 
 			m_yolo_Th = std::thread(&CYolo5::process, &m_yolo, std::ref(m_frameYolo), std::ref(m_Youtput), std::ref(g_detectionState)); // Including day cam (missing : Pass camera parameters )
 		//}
@@ -329,7 +327,6 @@ bool CDetector::init(int w, int h, int imgSize , int pixelWidth, float scaleDisp
 		size_t sizeTemp(m_width * m_height * m_colorDepth);
 		if (m_data == NULL)
 			m_data = malloc(sizeTemp);
-		//Sleep(1000);
 
 		return true;
 	}
@@ -492,8 +489,6 @@ void CDetector::terminate()
 		findContours(bgMask, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE, cv::Point(0, 0));
 
 		// Contour analysis
-
-		//m_objects.clear(); // DDEBUG 
 
 		for (auto cont : contours) {
 			cv::Rect box = cv::boundingRect(cont);

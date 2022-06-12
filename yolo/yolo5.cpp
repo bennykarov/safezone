@@ -142,6 +142,18 @@ void CYolo5::detect()
         Main YDetection function:
   --------------------------------------------------------------------------------------------------------------------------*/
 
+/*----------------------------------------------------------------------------------
+ *  	Relevants are only the (part of the) first 8 class IDs:
+ *		person (0) ,bicycle, car,  motorbike,  aeroplane,  bus,   train,   truck (7),
+ *		(not relevants: boat,traffic_light,....)
+ *---------------------------------------------------------------------------------*/
+const int truck_is = 7;
+inline bool isClassRelevant(int class_id)
+{
+	return  (class_id <= truck_is);
+}
+
+
 void CYolo5::detect(cv::Mat &image, std::vector<YDetection> &output)
 {
     cv::Mat blob;
@@ -177,7 +189,7 @@ void CYolo5::detect(cv::Mat &image, std::vector<YDetection> &output)
             cv::Point class_id;
             double max_class_score;
             minMaxLoc(scores, 0, &max_class_score, 0, &class_id);
-            if (max_class_score > SCORE_THRESHOLD) {
+            if (max_class_score > SCORE_THRESHOLD && isClassRelevant(class_id.x)) { // Worning : only first 7 classes are count!!!!
 
                 confidences.push_back(confidence);
 

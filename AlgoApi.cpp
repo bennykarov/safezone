@@ -57,6 +57,8 @@ API_EXPORT bool InitGPU()
 }
 */
 
+
+#define PRINT_TIMING false
 // This is an example of an exported function.
 API_EXPORT int RunAlgoColors(BAUOTECH_AND_BENNY_KAROV_ALGO algo,
 							 uint8_t *pData,
@@ -83,7 +85,7 @@ API_EXPORT int RunAlgoColors(BAUOTECH_AND_BENNY_KAROV_ALGO algo,
 			if (frameNum == 0) 
 			{
 				g_tracker.init(width, height, image_size, pixelWidth, 0.5);
-#if 1				
+#if PRINT_TIMING				
 				g_debugFile.open("c:\\tmp\\algoapi_2.txt", std::ofstream::out | std::ofstream::app);
 #endif 
 			}
@@ -92,15 +94,13 @@ API_EXPORT int RunAlgoColors(BAUOTECH_AND_BENNY_KAROV_ALGO algo,
 				g_tracker.terminate();
 				return -1;
 			}
-#if 1 
-			// DDEBUG DDEBUG ---------------------
+#if PRINT_TIMING 
 			auto now1 = std::chrono::system_clock::now();
 #endif 
 
-			g_tracker.process((void*)pData, pObjects);
-			*objectCount = (uint32_t)g_tracker.getDetectionCount();
+			*objectCount = g_tracker.process((void*)pData, pObjects);
 
-#if 1 
+#if PRINT_TIMING
 			auto now2 = std::chrono::system_clock::now();
 			typedef std::chrono::duration<float, std::milli> duration;
 			duration elapsed = now2 - now1;

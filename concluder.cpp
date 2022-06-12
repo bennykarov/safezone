@@ -14,6 +14,11 @@
 
 void CConcluder::init(int debugLevel) { m_debugLevel = debugLevel; 	m_active = true; }
 
+/*---------------------------------------------------------------------------------------
+	Add new rect to detection list - rather match to old one (by overlapping) OR 
+	make a new object list.
+	[ Note objects w/o any detection X frame are deleted by Prune() function ]
+ *--------------------------------------------------------------------------------------*/
 void CConcluder::add(std::vector <cv::Rect>  BGSEGoutput, std::vector <YDetection> YoloOutput, int frameNum)
 {
 	if (!m_active)
@@ -38,7 +43,6 @@ void CConcluder::add(std::vector <cv::Rect>  BGSEGoutput, std::vector <YDetectio
 			m_objects.back().push_back(newObj);
 		}
 
-		//m_objects.back().back().m_finalLabel = calcFinalLable(m_objects.back());
 	}
 
 	// Add YOLO object - match to BGSeg objects (if does)
@@ -124,28 +128,6 @@ int CConcluder::track()
 	return 0; 
 }
 
-#if 0
-/*---------------------------------------------------------------------------
-	Return only "good" objects - with Label or long enough (with no label)
-	A good object is:
-	(1) Detected on current (last) frame
-	(2) Detected by YOLO or is long enough (by any kind of detection)
- ---------------------------------------------------------------------------*/
-std::vector <CObject> CConcluder::getObjects_(int frameNum)
-{
-
-	for (auto obj : m_objects) {
-		obj.back().m_finalLabel = obj.back().m_label =  calcFinalLable(obj);
-
-		if (obj.back().m_frameNum == frameNum &&
-			(obj.back().m_finalLabel != Labels::nonLabled || obj.size() >= GOOD_TRACKING_LEN))
-			m_goodObjects.push_back(obj.back());
-	}
-
-	return goodObjects;
-}
-#endif 
-
 /*---------------------------------------------------------------------------
 	Get object : person labeled and stable BGSeg  
  ---------------------------------------------------------------------------*/
@@ -154,27 +136,57 @@ std::vector <CObject> CConcluder::getPersonObjects(int frameNum)
 	std::vector <CObject> personObjects;
 
 	std::copy_if(m_detectedObjects.begin(), m_detectedObjects.end(), std::back_inserter(personObjects),
-		[](CObject obj) { return obj.m_label == Labels::person; });
+		[frameNum](CObject obj) { return (obj.m_frameNum == frameNum && obj.m_label == Labels::person); });
 	/*
 	for (auto& obj : m_detectedObjects) 
 		if (obj.m_label == Labels::person)    personObjects.push_back(obj);
 	*/
 
 	return personObjects;
-
-
-#if 0
-	m_personObjects.clear(); // TEMP clearing
-
-	for (auto &obj : m_objects) {
-		CObject consObj = consolidateObj(obj);
-		if (!consObj.empty() && consObj.m_label == Labels::person)
-			m_personObjects.push_back(consolidateObj(obj));
-	}
-	return m_personObjects;
-#endif 
-
 }
+
+/*---------------------------------------------------------------------------
+	Track motion in Cabin (motionRoi) for long less motion 
+ ---------------------------------------------------------------------------*/
+std::vector <CObject> CConcluder::getCabinMotion(cv::Rect motionRoi, int frameNum)
+{
+	std::vector <CObject> stadyMotiobObjects;
+
+	if (motionRoi.width == 0 || motionRoi.height == 0)
+		return stadyMotiobObjects; // empty list
+
+	int minLen = 5; // CONSTANTS::FPS * 2; // backward frames to check motion
+	float overlappingRatio = 0.5; // min part of the frames with detetction from total len
+
+	for (int i = 0; i < m_objects.size(); i++) {
+
+		// Check if current detected
+		if (m_objects[i].back().m_frameNum < frameNum)
+			continue;
+
+		// Check if detection history is long enough
+		if (m_objects[i].size() < minLen)
+			continue;
+
+		// check if in motionROI (at ledt half of the rect)
+		if ( (m_objects[i].back().m_bbox & motionRoi).area() < int((float)m_objects[i].back().m_bbox.area() * overlappingRatio))
+			continue;
+
+		// Check if is pure motion (no label)
+#if 0
+		{
+			auto startIt = m_objects[i].end() - minLen;
+			int labeledFrame = std::count_if(startIt, m_objects[i].end(), [](CObject obj) {return obj.m_label != Labels::nonLabled; });
+			if (labeledFrame > 0)
+				continue;
+		}
+#endif 
+		stadyMotiobObjects.push_back(m_objects[i].back());
+	}
+
+	return stadyMotiobObjects;
+}
+
 
 std::vector <CObject> CConcluder::getVehicleObjects(int frameNum, bool onlyMoving)
 {
@@ -408,3 +420,27 @@ int CConcluder::numberOfPersonsObBoard()
 {
 	return getPersonObjects(m_frameNum).size();
 }
+
+
+
+#if 0
+/*---------------------------------------------------------------------------
+	Return only "good" objects - with Label or long enough (with no label)
+	A good object is:
+	(1) Detected on current (last) frame
+	(2) Detected by YOLO or is long enough (by any kind of detection)
+ ---------------------------------------------------------------------------*/
+std::vector <CObject> CConcluder::getObjects_(int frameNum)
+{
+
+	for (auto obj : m_objects) {
+		obj.back().m_finalLabel = obj.back().m_label = calcFinalLable(obj);
+
+		if (obj.back().m_frameNum == frameNum &&
+			(obj.back().m_finalLabel != Labels::nonLabled || obj.size() >= GOOD_TRACKING_LEN))
+			m_goodObjects.push_back(obj.back());
+	}
+
+	return goodObjects;
+}
+#endif 

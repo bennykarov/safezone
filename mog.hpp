@@ -9,7 +9,7 @@ public:
 	int main(std::string videoName);
 	void init(int History = 50, double varThreshold = 30.0, bool detectShadows = true, int emphasize=0);
 	void setLearnRate(double rate) { m_learningRate = rate;}  // Negative parameter value makes the algorithm to use some automatically chosen learning rate
-	cv::Mat process(cv::Mat img);
+	cv::Mat process(cv::Mat img, int frameNum);
 	void startLearn() { m_learningRate = -1.;}  // Negative parameter value makes the algorithm to use some automatically chosen learning rate
 	void pauseLearn() { m_learningRate = 0;}   // 0 means that the background model is not updated at all, 
 

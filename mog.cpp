@@ -92,15 +92,15 @@ void CBGSubstruct::init(int History, double varThreshold, bool detectShadows, in
 
 }
 
-cv::Mat  CBGSubstruct::process(cv::Mat frame)
+cv::Mat  CBGSubstruct::process(cv::Mat frame, int frameNum)
 {
 
     Mat fgMask;
 
     if (frame.empty())
         return cv::Mat();
-
-    m_frameNum = (m_frameNum+1) % 99999;
+	m_frameNum = frameNum;
+    //m_frameNum = (m_frameNum+1) % 99999;
 
 #if 0
 	bool RamiLevi = false;

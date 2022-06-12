@@ -37,6 +37,7 @@
 
 #include "algoDetection.hpp"
 
+
 #define MAX_PERSON_DIM	cv::Size(40, 90) // DDEBUG CONST
 
 
@@ -143,6 +144,7 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	conf.debugLevel = pt.get<int>("GENERAL.debug", conf.debugLevel);
 	conf.showTruck = pt.get<int>("GENERAL.showTruck", conf.showTruck);
 	conf.showMotion = pt.get<int>("GENERAL.showMotion", conf.showMotion);
+	conf.showMotionROI = pt.get<int>("GENERAL.showMotionROI", conf.showMotionROI);
 	conf.camROI = to_array<int>(pt.get<std::string>("GENERAL.camROI", "0,0,0,0"));
 	// [OPTIMIZE]  Optimization
 	conf.skipMotionFrames = pt.get<int>("ALGO.stepMotion", conf.skipMotionFrames);
@@ -154,6 +156,7 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	std::vector <int> motionROI_vec = to_array<int>(pt.get<std::string>("ALGO.motionROI", "0,0,0,0"));
 	if (motionROI_vec[2] > 0) // width
 		conf.motionROI = cv::Rect(motionROI_vec[0], motionROI_vec[1], motionROI_vec[2], motionROI_vec[3]);
+
 
 	conf.modelFolder = pt.get<std::string>("ALGO.modelFolder", conf.modelFolder);
 	conf.scale = pt.get<float>("ALGO.scale", conf.scale);
@@ -234,7 +237,7 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 
 	void debugSaveParams(int w, int h, int imgSize, int pixelWidth, float scaleDisplay, Config params)
 	{
-		std::ofstream debugFile("c:\\tmp\\algoapi.txt");
+		std::ofstream debugFile("c:\\tmp\\algoapi_params.txt");
 
 		debugFile << w << " , " << h << " , " << imgSize << " , " << pixelWidth << " , " << scaleDisplay << " , " << params.useGPU << " , " << params.MLType << " , " << params.skipDetectionFrames << " , " << params.skipDetectionFrames2 << "\n";
 		debugFile.close();
@@ -274,7 +277,7 @@ bool CDetector::init(int w, int h, int imgSize , int pixelWidth, float scaleDisp
 
 		setConfigDefault(m_params);
 		readConfigFile("C:\\Program Files\\Bauotech\\Dll\\Algo\\config.ini", m_params);
-		debugSaveParams(w, h, imgSize, pixelWidth, scaleDisplay, m_params);
+		//debugSaveParams(w, h, imgSize, pixelWidth, scaleDisplay, m_params);
 
 
 		if (1)
@@ -319,7 +322,7 @@ bool CDetector::init(int w, int h, int imgSize , int pixelWidth, float scaleDisp
 
 		if (1) {
 			m_concluder.init(m_params.debugLevel);			
-			m_concluder.setPersonDim(MAX_PERSON_DIM); // DDEBUG CONST
+			m_concluder.setPersonDim(MAX_PERSON_DIM); 
 		}
 
 
@@ -364,7 +367,7 @@ void CDetector::terminate()
 		// BG seg detection
 		//--------------------
 		if (timeForMotion()) {
-			m_bgMask = m_bgSeg.process(frame);
+			m_bgMask = m_bgSeg.process(frame, m_frameNum);
 			if (!m_bgMask.empty()) {
 				m_motionDetectet = cv::countNonZero(m_bgMask) > ALGO_DETECTOPN_CONSTS::MIN_PIXELS_FOR_MOTION;
 				std::vector <cv::Rect>  BGSEGoutput = detectByContours(m_bgMask);
@@ -423,15 +426,6 @@ void CDetector::terminate()
 
 	int CDetector::process(void *dataOrg, ALGO_DETECTION_OBJECT_DATA *pObjects)
 	{
-		
-		/*
-		size_t sizeTemp(m_width * m_height * m_colorDepth);
-		if (m_data == NULL)
-			m_data  = malloc(sizeTemp);
-		*/
-
-
-		//memcpy(m_data, dataOrg, sizeTemp); // buffering NOT optimized
 		m_data = dataOrg; // No buffering - use original buffer for processing 
 
 		m_frameOrg = cv::Mat(m_height, m_width, depth2cvType(m_colorDepth), m_data);
@@ -460,8 +454,10 @@ void CDetector::terminate()
 		objects_tracked = processFrame(m_frame);
 
 
+		/*
 		pObjects->reserved1_personsCount = m_concluder.getPersonObjects(m_frameNum).size();
 		pObjects->reserved2_motion = objects_tracked; //  m_motionDetectet ? 1 : 0;
+		*/
 
 		// Draw overlays :
 		//draw(m_frameOrg, m_Youtput , 1.0 / m_params.scale);
@@ -472,7 +468,23 @@ void CDetector::terminate()
 
 		drawInfo(m_frameOrg);
 	
-		return m_frameNum++;
+
+		// final detection here :
+
+		int persons_detected = m_concluder.getPersonObjects(m_frameNum).size();
+		if (persons_detected == 0) {
+			// Convert full size rect to concluder coordinates (as m_frame is)
+			cv::Rect scaledROI = m_params.motionROI - cv::Point(m_camROI.x, m_camROI.y);
+			scaledROI  = scaleBBox(scaledROI, m_params.scale);
+
+			persons_detected += m_concluder.getCabinMotion(scaledROI, m_frameNum).size();
+		}
+		//m_frameNum++;
+		m_frameNum = (m_frameNum + 1) % 99999;
+
+
+		return persons_detected;
+
 	}
 
 
@@ -519,7 +531,7 @@ void CDetector::terminate()
 
 
 	/*---------------------------------------------------------------------------------------------
-	 *			DRAW FUNCTIONS 
+	 *			DRAW All detectios + RECTs FUNCTIONS 
 	 ---------------------------------------------------------------------------------------------*/
 
 	void CDetector::draw(cv::Mat &img, float scale)
@@ -527,8 +539,8 @@ void CDetector::terminate()
 		cv::Scalar  color(0, 0, 0);
 
 		for (auto obj : m_concluder.getPersonObjects(m_frameNum)) {
-			auto box = scaleBBox(obj.m_bbox, scale);
-			box += cv::Point(m_camROI.x, m_camROI.y);
+			auto box = scaleBBox(obj.m_bbox, scale) + cv::Point(m_camROI.x, m_camROI.y); // Convert to original dimensions
+			//box += cv::Point(m_camROI.x, m_camROI.y);
 			auto classId = obj.m_finalLabel;
 			//--------------------------------------------------------------
 			// Colors: 
@@ -558,8 +570,7 @@ void CDetector::terminate()
 		if (m_params.showTruck > 0) {
 			bool showOnlyWhileMoving = m_params.showTruck == 1;
 			for (auto obj : m_concluder.getVehicleObjects(m_frameNum, showOnlyWhileMoving)) {
-				auto box = scaleBBox(obj.m_bbox, scale);
-				box += cv::Point(m_camROI.x, m_camROI.y);
+				auto box = scaleBBox(obj.m_bbox, scale) + cv::Point(m_camROI.x, m_camROI.y);
 				auto classId = obj.m_finalLabel;
 
 				if (classId == Labels::train || classId == Labels::bus) // DDEBUg
@@ -590,8 +601,7 @@ void CDetector::terminate()
 			if (detection.class_id == Labels::person || detection.class_id == Labels::car || 
 				detection.class_id == Labels::truck || detection.class_id == Labels::bus)
 			{
-				auto box = scaleBBox(detection.box, scale);
-				box += cv::Point(m_camROI.x, m_camROI.y);
+				auto box = scaleBBox(detection.box, scale) + cv::Point(m_camROI.x, m_camROI.y);
 				auto classId = detection.class_id;
 				const auto color = colors[classId % colors.size()];
 				cv::rectangle(img, box, color, 3);
@@ -602,7 +612,9 @@ void CDetector::terminate()
 		}
 	}
 
-
+	/*--------------------------------------------------------------------------------
+	 *	Draw motion rect's
+	 *--------------------------------------------------------------------------------*/
 	void CDetector::draw(cv::Mat &img, std::vector<cv::Rect>  rois, float scale)
 	{
 		cv::Scalar color(0, 255, 0);
@@ -617,7 +629,11 @@ void CDetector::terminate()
 	void CDetector::drawInfo(cv::Mat &img)
 	{
 		cv::Scalar color(255, 0, 0);
-		cv::rectangle(img, m_camROI, color, 2);
+		cv::rectangle(img, m_camROI, cv::Scalar(255, 0, 0) , 2);
+
+		if (m_params.showMotionROI > 0)
+			cv::rectangle(img, m_params.motionROI, cv::Scalar(55, 55, 0), 2);
+
 
 		if (0)
 			cv::putText(m_frameOrg, std::to_string(m_frameNum) , cv::Point(20, img.rows - 20), cv::FONT_HERSHEY_SIMPLEX, 1., cv::Scalar(0, 255, 0));

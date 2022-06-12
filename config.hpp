@@ -39,6 +39,7 @@ struct Config
 	//int showTime = 1;
 	int showTruck = 0;
 	int showMotion = 0;
+	int showMotionROI = 0;
 	int debugLevel = 0;
 	float displayScale = 1.;
 	// OPtimization

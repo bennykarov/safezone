@@ -46,6 +46,7 @@ public:
 	void draw(cv::Mat &img, std::vector<cv::Rect>  rois, float scale);		 // for BGSeg
 	void drawInfo(cv::Mat &img);		
 
+
 	int getDetectionCount();
 
 	void terminate(); // terminate process

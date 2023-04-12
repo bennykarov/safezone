@@ -256,6 +256,8 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 /*---------------------------------------------------------------------------------------------
  *						D E T E C T O R       C L A S S  
  *--------------------------------------------------------------------------------------------*/
+
+ 
 /*
 bool CDetector::InitGPU()
 {
@@ -294,12 +296,7 @@ bool CDetector::init(int w, int h, int imgSize , int pixelWidth, float scaleDisp
 			m_isCuda = checkForGPUs() > 0;	 
 
 
-#if 0		if (m_isCuda)
-			MessageBoxA(0, "RUN WITH GPU", "Info", MB_OK);
-		else 
-			MessageBoxA(0, "RUN WITOUT GPU", "Info", MB_OK);
-#endif 
-
+		// if (m_isCuda)  MessageBoxA(0, "RUN WITH GPU", "Info", MB_OK); else  MessageBoxA(0, "RUN WITOUT GPU", "Info", MB_OK);
 
 
 		//if (m_params.MLType > 0)  {
@@ -664,34 +661,6 @@ void CDetector::terminate()
 		}
 	}
 	
-
-#if 0
-	/*------------------------------------------------------------------------------------------------
-	Draw ML (!BGSeg only) objects
-	------------------------------------------------------------------------------------------------*/
-	void CDetector::draw_Hybrid(cv::Mat &img, float scale)
-	{
-		cv::Scalar  color(0, 0, 0);
-
-		for (auto obj : m_concluder.getHybridObjects(m_frameNum)) {
-			auto box = scaleBBox(obj.m_bbox, scale) + cv::Point(m_camROI.x, m_camROI.y); // Convert to original dimensions
-			//box += cv::Point(m_camROI.x, m_camROI.y);
-			auto classId = obj.m_finalLabel;
-
-			color = colors[classId % colors.size()];
-
-			cv::Rect lBox = scaleMe(box, 1.5, img.size());
-			cv::rectangle(img, box, color, 2);
-			// Add lablel
-			if (obj.m_finalLabel != Labels::nonLabled) {
-				cv::rectangle(img, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color, cv::FILLED);
-				cv::putText(img, m_yolo.getClassStr(classId).c_str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
-			}
-			else
-				int debug = 10;
-		}
-	}
-#endif 
 
 	void CDetector::draw_ML(cv::Mat &img, float scale)
 	{

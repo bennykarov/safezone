@@ -28,18 +28,6 @@ std::string GetCurrentWorkingDir( void )
 }
 
 
-    enum Classes
-    {
-        person = 0,
-        bicycle,    //   1
-        car,        //   2
-        motorbike,  //   3
-        aeroplane,  //   4
-        bus,        //   5
-        train,      //   6  
-        truck       //   7
-    };
-
 
 std::vector  <cv::Rect> splitImage(cv::Size size, int pieces_1D)
 {

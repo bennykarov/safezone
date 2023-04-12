@@ -2,13 +2,14 @@
 #include <atomic>
 
 
+
+
 struct YDetection
 {
     int class_id;
     float confidence;
     cv::Rect box;
 };
-
 
 enum DETECTION_STATE {
 	Idle = 0,

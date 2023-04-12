@@ -119,8 +119,9 @@ int CConcluder::track()
 
 	for (auto& obj : m_objects) {
 		CObject consObj = consolidateObj(obj);
-		if (!consObj.empty() && obj.back().m_finalLabel != Labels::nonLabled) {
-			consObj.m_moving = isMoving(obj);
+		//if (!consObj.empty() && obj.back().m_finalLabel != Labels::nonLabled) {
+		if (!consObj.empty()) {
+			consObj.m_moving = isMoving(obj) ? 1 : 0;
 			m_detectedObjects.push_back(consObj);
 		}
 	}
@@ -136,11 +137,7 @@ std::vector <CObject> CConcluder::getPersonObjects(int frameNum)
 	std::vector <CObject> personObjects;
 
 	std::copy_if(m_detectedObjects.begin(), m_detectedObjects.end(), std::back_inserter(personObjects),
-		[frameNum](CObject obj) { return (obj.m_frameNum == frameNum && obj.m_label == Labels::person); });
-	/*
-	for (auto& obj : m_detectedObjects) 
-		if (obj.m_label == Labels::person)    personObjects.push_back(obj);
-	*/
+		[frameNum](CObject obj) { return (obj.m_frameNum >= frameNum - 4 && obj.m_label == Labels::person); });
 
 	return personObjects;
 }
@@ -226,6 +223,42 @@ std::vector <CObject> CConcluder::getOtherObjects(int frameNum, bool onlyMoving)
 }
 
 
+/*-----------------------------------------------------------------------------------------
+ * Get all objects  - latest detetcted in 'frameNum' 
+ -----------------------------------------------------------------------------------------*/
+std::vector <CObject> CConcluder::getMLObjects(int frameNum)
+{
+
+	std::vector <CObject> MLObjects;
+
+	std::copy_if(m_detectedObjects.begin(), m_detectedObjects.end(), std::back_inserter(MLObjects),
+		[frameNum](CObject obj) { return obj.m_label != Labels::nonLabled && obj.m_frameNum >=frameNum; });
+
+
+	return MLObjects;
+}
+
+
+std::vector <CObject> CConcluder::getHybridObjects(int frameNum)
+{
+
+	std::vector <CObject> hybridObjects;
+
+	// All labeled (ML) objects
+	std::copy_if(m_detectedObjects.begin(), m_detectedObjects.end(), std::back_inserter(hybridObjects),
+		[frameNum](CObject obj) { return obj.m_label != Labels::nonLabled /*&& obj.m_frameNum >= frameNum*/; });
+
+	// All current BGSeg objects (that are not overlapped with ML ones 
+	std::copy_if(m_detectedObjects.begin(), m_detectedObjects.end(), std::back_inserter(hybridObjects),
+		[frameNum](CObject obj) { return obj.m_finalLabel == Labels::nonLabled && obj.m_frameNum == frameNum; });
+
+	for (auto obj : m_detectedObjects)
+		if (obj.m_finalLabel == Labels::nonLabled)
+			int debug = 10;
+
+
+	return hybridObjects;
+}
 
 
 std::vector <int> CConcluder::getObjectsInd(int frameNum)
@@ -365,14 +398,15 @@ CObject   CConcluder::consolidateObj(std::vector <CObject> &objectHist)
  -----------------------------------------------------------------*/
 bool CConcluder::isMoving(std::vector <CObject> obj)
 {
-	const int MIN_LEN = 20;  // in frames 
-	const double MIN_DISTANCE = (double)MIN_LEN * 0.5; // in pixels
+	const int MEASURE_LEN = 10;  // in frames 
+	const double MIN_DISTANCE = 10.; // DDEBUG CONST in pixels
 
 
-	if (obj.size() < MIN_LEN)
+	if (obj.size() < 2)
 		return false;
 
-	int dist = distance(centerOf(obj.back().m_bbox), centerOf(obj[obj.size() - MIN_LEN].m_bbox));
+	int backIdx = MIN(obj.size()-1, MEASURE_LEN);
+	int dist = distance(centerOf(obj.back().m_bbox), centerOf(obj[obj.size() - backIdx].m_bbox));
 	if (dist >= MIN_DISTANCE)
 		return true;
 

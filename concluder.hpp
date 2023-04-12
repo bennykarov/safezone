@@ -27,6 +27,8 @@ public:
 	std::vector <CObject> getPersonObjects(int frameNum); //  { return m_goodObjects; }
 	std::vector <CObject> getCabinMotion(cv::Rect motionRoi,  int frameNum); //  { return m_goodObjects; }
 	std::vector <CObject> getVehicleObjects(int frameNum, bool only_moving); //  Other labeled objects (not a persons) & BGSeg 
+	std::vector <CObject> getMLObjects(int frameNum); //  All detected objects
+	std::vector <CObject> getHybridObjects(int frameNum); //  All detected objects
 	std::vector <CObject> getOtherObjects(int frameNum, bool only_moving); //  Other labeled objects (not a persons) & BGSeg 
 	/*
 	std::vector <CObject> getObjects_(int frameNum); // only last detected object

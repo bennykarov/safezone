@@ -74,6 +74,7 @@
 
 // GLOBALS
 std::atomic <int> g_detectionState = 0;
+bool g_rami_levi_mode = true;
 
 
 namespace  ALGO_DETECTOPN_CONSTS {
@@ -357,11 +358,7 @@ void CDetector::terminate()
 		else
 			frame = frame_;
 
-		if (0)
-		{
-			imshow("DLL benny", frame);
-			cv::waitKey(1);
-		}
+		if (0) { imshow("DLL benny", frame); cv::waitKey(1); }
 
 
 		// BG seg detection
@@ -393,11 +390,16 @@ void CDetector::terminate()
 			m_Youtput.clear();
 
 			m_frameYolo = frame.clone();
-#ifndef OFFLINE
+
 			g_detectionState.store(DETECTION_STATE::ImageReady);
-#else
-			m_yolo.detect(m_frameYolo, m_Youtput);
-#endif 
+
+			//--------------------------------
+			// DDEBUG DDEBUG SYNC DETECTION 
+			//--------------------------------
+			if (1)
+				while (g_detectionState.load() != DETECTION_STATE::DetectionDone)
+					Sleep(10);
+			// OFFLINE !!! : m_yolo.detect(m_frameYolo, m_Youtput);
 		}
 		
 
@@ -435,6 +437,9 @@ void CDetector::terminate()
 			return -1;
 		}
 
+		if (m_frameNum == 0) // DDEBUG DDEBUG 
+			cv::imwrite("c:\\tmp\\firstFrame.png", m_frameOrg);
+
 
 		// Set active ROI at first time
 		if (m_camROI.width == 0) {// ROI not set yet
@@ -464,7 +469,12 @@ void CDetector::terminate()
 		if (m_params.showMotion)
 			draw(m_frameOrg, m_BGSEGoutput, 1.0 / m_params.scale);
 		
-		draw(m_frameOrg, 1.0 / m_params.scale);
+		bool showOnlyMovingObj = true;
+		if (!g_rami_levi_mode)
+			draw(m_frameOrg, 1.0 / m_params.scale);
+		else
+			draw_Hybrid(m_frameOrg, 1.0 / m_params.scale , showOnlyMovingObj); 
+			//draw_ML(m_frameOrg, 1.0 / m_params.scale);
 
 		drawInfo(m_frameOrg);
 	
@@ -531,7 +541,7 @@ void CDetector::terminate()
 
 
 	/*---------------------------------------------------------------------------------------------
-	 *			DRAW All detectios + RECTs FUNCTIONS 
+	 *			DRAW detectios + RECTs FUNCTIONS 
 	 ---------------------------------------------------------------------------------------------*/
 
 	void CDetector::draw(cv::Mat &img, float scale)
@@ -557,7 +567,8 @@ void CDetector::terminate()
 			else
 				continue;
 
-			cv::rectangle(img, box, color, 3);
+			cv::Rect lBox = scaleMe(box, 1.5, img.size());
+			cv::rectangle(img, box, color, 2);
 			// Add lablel
 			if (obj.m_finalLabel != Labels::nonLabled) {
 				cv::rectangle(img, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color, cv::FILLED);
@@ -573,6 +584,7 @@ void CDetector::terminate()
 				auto box = scaleBBox(obj.m_bbox, scale) + cv::Point(m_camROI.x, m_camROI.y);
 				auto classId = obj.m_finalLabel;
 
+				// DDEBUG PATCH FOR ALENBY !!!!
 				if (classId == Labels::train || classId == Labels::bus) // DDEBUg
 					classId = Labels::truck;
 
@@ -593,6 +605,115 @@ void CDetector::terminate()
 			}
 		}
 	}
+
+
+
+
+	/*------------------------------------------------------------------------------------------------
+		Draw ML (!BGSeg only) objects
+	 ------------------------------------------------------------------------------------------------*/
+	void CDetector::draw_Hybrid(cv::Mat &img, float scale, bool movingOnly)
+	{
+		cv::Scalar  color(0, 0, 0);
+
+		// Draw classified objects
+		std::vector <CObject> mlObjects = m_concluder.getMLObjects(m_frameNum);
+		for (auto obj : mlObjects) {
+			if (movingOnly && obj.m_moving == 0)
+				continue; // static object 
+			auto box = scaleBBox(obj.m_bbox, scale) + cv::Point(m_camROI.x, m_camROI.y); // Convert to original dimensions
+			//box += cv::Point(m_camROI.x, m_camROI.y);
+			Labels classId = obj.m_finalLabel;
+
+			// DDEBUG PATCH FOR RAMI_LEVI VIDEO !!!!!!
+			if (classId == Labels::train || classId == Labels::bus || classId == Labels::truck)
+				classId = Labels::car;
+
+			color = colors[classId % colors.size()];
+
+			cv::Rect lBox = scaleMe(box, 1.5, img.size());
+			cv::rectangle(img, lBox, color, 2);
+			// Add lablel
+			if (obj.m_finalLabel != Labels::nonLabled) {
+				cv::rectangle(img, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color, cv::FILLED);
+				cv::putText(img, m_yolo.getClassStr(classId).c_str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+			}
+		}
+
+		// Draw fresh BGSeg (motion) detection 
+		std::vector <bool>  overlapped(m_BGSEGoutput.size(), false);
+
+		// sign overlapped BGSeg rects
+		for (int i = 0; i < m_BGSEGoutput.size(); i++) {
+			for (auto mlObj : mlObjects) {
+				if ((m_BGSEGoutput[i] & mlObj.m_bbox).area() > 10) {
+					overlapped[i] = true;
+					break; // overlapped ML object - dont draw
+				}
+			}
+		}
+
+		for (int i = 0; i < m_BGSEGoutput.size(); i++) {
+			if (overlapped[i] == false) {
+
+				color = cv::Scalar(0, 0, 0);
+				auto box = scaleBBox(m_BGSEGoutput[i], scale) + cv::Point(m_camROI.x, m_camROI.y); // Convert to original dimensions
+				//cv::Rect lBox = scaleMe(rect, 1.5, img.size());
+				cv::rectangle(img, box, color, 2);
+			}
+		}
+	}
+	
+
+#if 0
+	/*------------------------------------------------------------------------------------------------
+	Draw ML (!BGSeg only) objects
+	------------------------------------------------------------------------------------------------*/
+	void CDetector::draw_Hybrid(cv::Mat &img, float scale)
+	{
+		cv::Scalar  color(0, 0, 0);
+
+		for (auto obj : m_concluder.getHybridObjects(m_frameNum)) {
+			auto box = scaleBBox(obj.m_bbox, scale) + cv::Point(m_camROI.x, m_camROI.y); // Convert to original dimensions
+			//box += cv::Point(m_camROI.x, m_camROI.y);
+			auto classId = obj.m_finalLabel;
+
+			color = colors[classId % colors.size()];
+
+			cv::Rect lBox = scaleMe(box, 1.5, img.size());
+			cv::rectangle(img, box, color, 2);
+			// Add lablel
+			if (obj.m_finalLabel != Labels::nonLabled) {
+				cv::rectangle(img, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color, cv::FILLED);
+				cv::putText(img, m_yolo.getClassStr(classId).c_str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+			}
+			else
+				int debug = 10;
+		}
+	}
+#endif 
+
+	void CDetector::draw_ML(cv::Mat &img, float scale)
+	{
+		cv::Scalar  color(0, 0, 0);
+
+		for (auto obj : m_concluder.getMLObjects(m_frameNum)) {
+			auto box = scaleBBox(obj.m_bbox, scale) + cv::Point(m_camROI.x, m_camROI.y); // Convert to original dimensions
+			//box += cv::Point(m_camROI.x, m_camROI.y);
+			auto classId = obj.m_finalLabel;
+
+			color = colors[classId % colors.size()];
+
+			cv::Rect lBox = scaleMe(box, 1.5, img.size());
+			cv::rectangle(img, box, color, 2);
+			// Add lablel
+			if (obj.m_finalLabel != Labels::nonLabled) {
+				cv::rectangle(img, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color, cv::FILLED);
+				cv::putText(img, m_yolo.getClassStr(classId).c_str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+			}
+		}
+	}
+
 
 	void CDetector::draw(cv::Mat &img, std::vector<YDetection> Youtput, float scale)
 	{
@@ -628,9 +749,11 @@ void CDetector::terminate()
 
 	void CDetector::drawInfo(cv::Mat &img)
 	{
-		cv::Scalar color(255, 0, 0);
-		cv::rectangle(img, m_camROI, cv::Scalar(255, 0, 0) , 2);
-
+		bool params_shaow_camROI = true;
+		if (params_shaow_camROI) {
+			cv::Scalar color(255, 0, 0);
+			cv::rectangle(img, m_camROI, cv::Scalar(255, 0, 0), 2);
+		}
 		if (m_params.showMotionROI > 0)
 			cv::rectangle(img, m_params.motionROI, cv::Scalar(55, 55, 0), 2);
 

@@ -94,16 +94,20 @@ API_EXPORT int RunAlgoColors(BAUOTECH_AND_BENNY_KAROV_ALGO algo,
 				g_tracker.terminate();
 				return -1;
 			}
-#if PRINT_TIMING 
-			auto now1 = std::chrono::system_clock::now();
-#endif 
+
+
 
 			*objectCount = g_tracker.process((void*)pData, pObjects);
 
-#if PRINT_TIMING
+#if 0
+			// DDEBUG DELAY - should moved to consoleapp1..
 			auto now2 = std::chrono::system_clock::now();
 			typedef std::chrono::duration<float, std::milli> duration;
 			duration elapsed = now2 - now1;
+			if (elapsed.count() < 30)
+				Sleep(30 - elapsed.count());
+#endif 
+#if PRINT_TIMING
 			g_debugFile << "   (Process Durection : " << elapsed.count() << " ms)" << std::endl;
 #endif 
 

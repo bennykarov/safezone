@@ -42,6 +42,8 @@ public:
 	int process(void *dataTemp, ALGO_DETECTION_OBJECT_DATA *pObjects);
 	int processFrame(cv::Mat &frame);
 	void draw(cv::Mat &img, float scale);   // by Concluder (good objects)
+	void draw_ML(cv::Mat &img, float scale);   // by Concluder (good objects)
+	void draw_Hybrid(cv::Mat &img, float scale, bool onlyMoving = false);   // by Concluder (good objects)
 	void draw(cv::Mat &img, std::vector<YDetection> Youtput, float scale);   // for Yolo
 	void draw(cv::Mat &img, std::vector<cv::Rect>  rois, float scale);		 // for BGSeg
 	void drawInfo(cv::Mat &img);		

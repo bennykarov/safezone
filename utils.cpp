@@ -897,6 +897,35 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 		  ratio = 1. / ratio;
 	  return (ratio >= absRatio );
   }
+
+
+  cv::Rect scaleMe(cv::Rect r, float scale, cv::Size imgSize)
+  {
+	  if (scale == 0)
+		  return r;
+
+	  float sWidth = (float)r.width * scale;
+
+	  float sHeight = (float)r.height * scale;
+	  cv::Rect sRect = r;
+	  sRect.x = r.x - int((sWidth - float(r.width)) * 0.5);
+	  sRect.y = r.y - int((sHeight - float(r.height)) * 0.5);
+
+	  // Check box limits:
+	  sRect.x = MAX(0, sRect.x);
+	  sRect.y = MAX(0, sRect.y);
+	  if (r.x + r.width > imgSize.width)
+		  r.width = imgSize.width - r.x - 1;
+	  if (r.y + r.height > imgSize.height)
+		  r.height = imgSize.height - r.y - 1;
+
+
+	  sRect.width = int(sWidth);
+	  sRect.height = int(sHeight);
+
+	  return sRect;
+  }
+
 #if 0
   // cv::Rect (12f) utils :
   cv::Rect extendBBox(cv::Rect rect_, cv::Point p)
